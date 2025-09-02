@@ -1,8 +1,8 @@
 {
   "name": "bitbucket-server",
   "version": "1.0.0",
-  "description": "MCP Server for Bitbucket Server PR management",
   "type": "module",
+  "description": "MCP Server for Atlassian Bitbucket data center",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "bin": {
@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc && node -e \"if (process.platform !== 'win32') require('child_process').execSync('chmod +x build/index.js')\"",
     "postinstall": "node -e \"const fs=require('fs'); if (process.platform !== 'win32' && fs.existsSync('build/index.js')) require('child_process').execSync('chmod +x build/index.js')\"",
-    "start": "node build/index.js",
+    "start": "npm run build && node build/index.js",
     "dev": "tsc -w",
     "dev:server": "npm run build && npx @modelcontextprotocol/inspector -e DEBUG=true node build/index.js",
     "test": "jest",
@@ -22,15 +22,21 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.1.1",
+    "@modelcontextprotocol/sdk": "^1.17.3",
+    "zod": "^3.24.2",
     "axios": "^1.6.5",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
     "@types/node": "^22.10.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",

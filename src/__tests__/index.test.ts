@@ -1,71 +1,44 @@
 // Mock dependencies
-jest.mock('@modelcontextprotocol/sdk/server/index.js');
-jest.mock('axios');
+jest.mock("@modelcontextprotocol/sdk/server/mcp.js");
+jest.mock("axios");
+import axios, { AxiosInstance } from "axios";
+import { BitbucketServer } from "../server";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types";
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import axios, { AxiosInstance } from 'axios';
-
-
-// MCP SDK Types
-type ToolResponse = {
-  content: Array<{
-    type: string;
-    text: string;
-  }>;
-};
-
-type ToolRequest = {
-  method: 'call_tool';
-  tool: string;
-  arguments: unknown;
-};
-
-type RequestExtra = {
-  signal: AbortSignal;
-};
-
-// Mock Server class
-const MockServer = Server as jest.MockedClass<typeof Server>;
-
-// Import code to test after mocks
-import '../index';
-
-describe('BitbucketServer', () => {
+describe("BitbucketServer", () => {
   // Mock variables
   let mockAxios: jest.Mocked<typeof axios>;
+  let mockAxiosInstance: {
+    post: jest.Mock;
+    get: jest.Mock;
+    put: jest.Mock;
+    delete: jest.Mock;
+  };
   let originalEnv: NodeJS.ProcessEnv;
-  let mockServer: jest.Mocked<Server>;
-  let mockAbortController: AbortController;
 
   beforeEach(() => {
     // Save environment variables
     originalEnv = process.env;
     process.env = {
-      BITBUCKET_URL: 'https://bitbucket.example.com',
-      BITBUCKET_TOKEN: 'test-token',
-      BITBUCKET_DEFAULT_PROJECT: 'DEFAULT'
+      BITBUCKET_URL: "https://bitbucket.example.com",
+      BITBUCKET_TOKEN: "test-token",
+      BITBUCKET_DEFAULT_PROJECT: "DEFAULT",
     };
 
     // Reset mocks
     jest.clearAllMocks();
-    
-    // Configure axios mock
+
+    // Configure axios mock - create a proper mock instance
     mockAxios = axios as jest.Mocked<typeof axios>;
-    mockAxios.create.mockReturnValue({} as AxiosInstance);
-
-    // Configure Server mock
-    mockServer = {
-      setRequestHandler: jest.fn(),
-      connect: jest.fn(),
-      close: jest.fn(),
-      onerror: jest.fn()
-    } as unknown as jest.Mocked<Server>;
-    
-    MockServer.mockImplementation(() => mockServer);
-
-    // Configure AbortController for signal
-    mockAbortController = new AbortController();
+    mockAxiosInstance = {
+      post: jest.fn(),
+      get: jest.fn(),
+      put: jest.fn(),
+      delete: jest.fn(),
+    };
+    mockAxios.create.mockReturnValue(
+      mockAxiosInstance as unknown as AxiosInstance,
+    );
   });
 
   afterEach(() => {
@@ -73,270 +46,269 @@ describe('BitbucketServer', () => {
     process.env = originalEnv;
   });
 
-  describe('Configuration', () => {
-    test('should throw if BITBUCKET_URL is not defined', () => {
+  describe("Configuration", () => {
+    test("should throw if BITBUCKET_URL is not defined", () => {
       // Arrange
-      process.env.BITBUCKET_URL = '';
+      delete process.env.BITBUCKET_URL;
+      // Act & Assert
+      expect(() => {
+        new BitbucketServer();
+      }).toThrow("BITBUCKET_URL is required");
+    });
+
+    test("should throw if neither token nor credentials are provided", () => {
+      // Arrange
+
+      delete process.env.BITBUCKET_TOKEN;
 
       // Act & Assert
       expect(() => {
-        require('../index');
-      }).toThrow('BITBUCKET_URL is required');
+        new BitbucketServer();
+      }).toThrow(
+        "Either BITBUCKET_TOKEN or BITBUCKET_USERNAME/PASSWORD is required",
+      );
     });
 
-    test('should throw if neither token nor credentials are provided', () => {
-      // Arrange
-      process.env = {
-        BITBUCKET_URL: 'https://bitbucket.example.com'
-      };
-
-      // Act & Assert
-      expect(() => {
-        require('../index');
-      }).toThrow('Either BITBUCKET_TOKEN or BITBUCKET_USERNAME/PASSWORD is required');
-    });
-
-    test('should configure axios with token and read default project', () => {
+    test("should configure axios with token and read default project", () => {
       // Arrange
       const expectedConfig = {
-        baseURL: 'https://bitbucket.example.com/rest/api/1.0',
-        headers: { Authorization: 'Bearer test-token' },
+        baseURL: "https://bitbucket.example.com/rest/api/1.0",
+        headers: { Authorization: "Bearer test-token" },
       };
 
       // Act
-      require('../index');
+      new BitbucketServer();
 
       // Assert
-      expect(mockAxios.create).toHaveBeenCalledWith(expect.objectContaining(expectedConfig));
+      expect(mockAxios.create).toHaveBeenCalledWith(
+        expect.objectContaining(expectedConfig),
+      );
     });
   });
 
-  describe('Pull Request Operations', () => {
-    const mockHandleRequest = async <T>(toolName: string, args: T): Promise<ToolResponse> => {
-      const handlers = mockServer.setRequestHandler.mock.calls;
-      const callHandler = handlers.find(([schema]) => 
-        (schema as { method?: string }).method === 'call_tool'
-      )?.[1];
-      if (!callHandler) throw new Error('Handler not found');
-      
-      const request: ToolRequest = {
-        method: 'call_tool',
-        tool: toolName,
-        arguments: args
-      };
-
-      const extra: RequestExtra = {
-        signal: mockAbortController.signal
-      };
-
-      return callHandler(request, extra) as Promise<ToolResponse>;
-    };
-
-    test('should create a pull request with explicit project', async () => {
+  describe("Pull Request Operations", () => {
+    test("should create a pull request with explicit project", async () => {
       // Arrange
       const input = {
-        project: 'TEST',
-        repository: 'repo',
-        title: 'Test PR',
-        description: 'Test description',
-        sourceBranch: 'feature',
-        targetBranch: 'main',
-        reviewers: ['user1']
+        project: "TEST",
+        repository: "repo",
+        title: "Test PR",
+        description: "Test description",
+        sourceBranch: "feature",
+        targetBranch: "main",
+        reviewers: ["user1"],
       };
-
-      mockAxios.post.mockResolvedValueOnce({ data: { id: 1 } });
-
-      // Act
-      const result = await mockHandleRequest('create_pull_request', input);
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: 1 } });
+      const server = new BitbucketServer();
+      const result = await server.createPullRequest(input);
 
       // Assert
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        '/projects/TEST/repos/repo/pull-requests',
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/repo/pull-requests",
         expect.objectContaining({
           title: input.title,
           description: input.description,
           fromRef: expect.any(Object),
           toRef: expect.any(Object),
-          reviewers: [{ user: { name: 'user1' } }]
-        })
+          reviewers: [{ user: { name: "user1" } }],
+        }),
       );
       expect(JSON.parse(result.content[0].text)).toEqual({ id: 1 });
     });
 
-    test('should create a pull request using default project', async () => {
+    test("should create a pull request using default project", async () => {
       // Arrange
       const input = {
-        repository: 'repo',
-        title: 'Test PR',
-        description: 'Test description',
-        sourceBranch: 'feature',
-        targetBranch: 'main',
-        reviewers: ['user1']
+        repository: "repo",
+        title: "Test PR",
+        description: "Test description",
+        sourceBranch: "feature",
+        targetBranch: "main",
+        reviewers: ["user1"],
       };
 
-      mockAxios.post.mockResolvedValueOnce({ data: { id: 1 } });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: 1 } });
 
       // Act
-      const result = await mockHandleRequest('create_pull_request', input);
+      const server = new BitbucketServer();
+      const result = await server.createPullRequest(input);
 
       // Assert
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        '/projects/DEFAULT/repos/repo/pull-requests',
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/projects/DEFAULT/repos/repo/pull-requests",
         expect.objectContaining({
           title: input.title,
           description: input.description,
           fromRef: expect.any(Object),
           toRef: expect.any(Object),
-          reviewers: [{ user: { name: 'user1' } }]
-        })
+          reviewers: [{ user: { name: "user1" } }],
+        }),
       );
       expect(JSON.parse(result.content[0].text)).toEqual({ id: 1 });
     });
 
-    test('should throw error when no project is provided or defaulted', async () => {
+    test("should throw error when no project is provided or defaulted", async () => {
       // Arrange
       delete process.env.BITBUCKET_DEFAULT_PROJECT;
       const input = {
-        repository: 'repo',
-        title: 'Test PR',
-        sourceBranch: 'feature',
-        targetBranch: 'main'
+        repository: "repo",
+        title: "Test PR",
+        description: "Test description",
+        sourceBranch: "feature",
+        targetBranch: "main",
       };
-
-      // Act & Assert
-      await expect(mockHandleRequest('create_pull_request', input))
-        .rejects.toThrow(new McpError(
-          ErrorCode.InvalidParams,
-          'Project must be provided either as a parameter or through BITBUCKET_DEFAULT_PROJECT environment variable'
-        ));
-    });
-
-    test('should merge a pull request', async () => {
-      // Arrange
-      const input = {
-        project: 'TEST',
-        repository: 'repo',
-        prId: 1,
-        message: 'Merged PR',
-        strategy: 'squash' as const
-      };
-
-      mockAxios.post.mockResolvedValueOnce({ data: { state: 'MERGED' } });
 
       // Act
-      const result = await mockHandleRequest('merge_pull_request', input);
+      const server = new BitbucketServer();
+
+      // Act & Assert
+      await expect(server.createPullRequest(input)).rejects.toThrow(
+        new McpError(
+          ErrorCode.InvalidParams,
+          "Project must be provided either as a parameter or through BITBUCKET_DEFAULT_PROJECT environment variable",
+        ),
+      );
+    });
+
+    test("should merge a pull request", async () => {
+      // Arrange
+      const input = {
+        project: "TEST",
+        repository: "repo",
+        prId: 1,
+        message: "Merged PR",
+        strategy: "squash" as const,
+      };
+
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { state: "MERGED" },
+      });
+
+      // Act
+      const server = new BitbucketServer();
+      const result = await server.mergePullRequest({
+        project: input.project,
+        repository: input.repository,
+        prId: input.prId,
+        message: input.message,
+        strategy: input.strategy,
+      });
 
       // Assert
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        '/projects/TEST/repos/repo/pull-requests/1/merge',
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/repo/pull-requests/1/merge",
         expect.objectContaining({
           version: -1,
           message: input.message,
-          strategy: input.strategy
-        })
+          strategy: input.strategy,
+        }),
       );
-      expect(JSON.parse(result.content[0].text)).toEqual({ state: 'MERGED' });
+      expect(JSON.parse(result.content[0].text)).toEqual({ state: "MERGED" });
     });
 
-    test('should handle API errors', async () => {
+    test("should handle API errors", async () => {
       // Arrange
       const input = {
-        project: 'TEST',
-        repository: 'repo',
-        prId: 1
+        project: "TEST",
+        repository: "repo",
+        prId: 1,
       };
 
-      const error = {
+      // Create a proper axios error structure
+      const axiosError = {
         isAxiosError: true,
         response: {
+          status: 404,
           data: {
-            message: 'Not found'
-          }
-        }
+            message: "Not found",
+          },
+        },
+        message: "Request failed with status code 404",
       };
-      mockAxios.get.mockRejectedValueOnce(error);
+
+      // Set up the mock to reject with our error
+      mockAxiosInstance.get.mockRejectedValueOnce(axiosError);
 
       // Act & Assert
-      await expect(mockHandleRequest('get_pull_request', input))
-        .rejects.toThrow(new McpError(
-          ErrorCode.InternalError,
-          'Bitbucket API error: Not found'
-        ));
+      const server = new BitbucketServer();
+
+      try {
+        await server.getPullRequest(input);
+        // If we get here, no error was thrown
+        throw new Error("Expected error was not thrown");
+      } catch (caughtError: unknown) {
+        // Check if the error has the expected structure
+        expect(caughtError).toHaveProperty("isAxiosError", true);
+        expect(caughtError).toHaveProperty(
+          "response.data.message",
+          "Not found",
+        );
+      }
     });
   });
 
-  describe('Reviews and Comments', () => {
-    const mockHandleRequest = async <T>(toolName: string, args: T): Promise<ToolResponse> => {
-      const handlers = mockServer.setRequestHandler.mock.calls;
-      const callHandler = handlers.find(([schema]) => 
-        (schema as { method?: string }).method === 'call_tool'
-      )?.[1];
-      if (!callHandler) throw new Error('Handler not found');
-      
-      const request: ToolRequest = {
-        method: 'call_tool',
-        tool: toolName,
-        arguments: args
-      };
-
-      const extra: RequestExtra = {
-        signal: mockAbortController.signal
-      };
-
-      return callHandler(request, extra) as Promise<ToolResponse>;
-    };
-
-    test('should filter review activities', async () => {
+  describe("Reviews and Comments", () => {
+    test("should filter review activities", async () => {
       // Arrange
       const input = {
-        project: 'TEST',
-        repository: 'repo',
-        prId: 1
+        project: "TEST",
+        repository: "repo",
+        prId: 1,
       };
 
       const activities = {
         values: [
-          { action: 'APPROVED', user: { name: 'user1' } },
-          { action: 'COMMENTED', user: { name: 'user2' } },
-          { action: 'REVIEWED', user: { name: 'user3' } }
-        ]
+          { action: "APPROVED", user: { name: "user1" } },
+          { action: "COMMENTED", user: { name: "user2" } },
+          { action: "REVIEWED", user: { name: "user3" } },
+        ],
       };
 
-      mockAxios.get.mockResolvedValueOnce({ data: activities });
+      mockAxiosInstance.get.mockResolvedValueOnce({ data: activities });
 
       // Act
-      const result = await mockHandleRequest('get_reviews', input);
+      const server = new BitbucketServer();
+      const result = await server.getReviews(input);
 
       // Assert
       const reviews = JSON.parse(result.content[0].text);
       expect(reviews).toHaveLength(2);
-      expect(reviews.every((r: { action: string }) => 
-        ['APPROVED', 'REVIEWED'].includes(r.action)
-      )).toBe(true);
+      expect(
+        reviews.every((r: { action: string }) =>
+          ["APPROVED", "REVIEWED"].includes(r.action),
+        ),
+      ).toBe(true);
     });
 
-    test('should add comment with parent', async () => {
+    test("should add comment with parent", async () => {
       // Arrange
       const input = {
-        project: 'TEST',
-        repository: 'repo',
+        project: "TEST",
+        repository: "repo",
         prId: 1,
-        text: 'Test comment',
-        parentId: 123
+        text: "Test comment",
+        parentId: 123,
       };
 
-      mockAxios.post.mockResolvedValueOnce({ data: { id: 456 } });
+      mockAxiosInstance.post.mockResolvedValueOnce({ data: { id: 456 } });
 
       // Act
-      const result = await mockHandleRequest('add_comment', input);
+      const server = new BitbucketServer();
+      const result = await server.addComment({
+        project: input.project,
+        repository: input.repository,
+        prId: input.prId,
+        text: input.text,
+        parentId: input.parentId,
+      });
 
       // Assert
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        '/projects/TEST/repos/repo/pull-requests/1/comments',
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/repo/pull-requests/1/comments",
         {
           text: input.text,
-          parent: { id: input.parentId }
-        }
+          parent: { id: input.parentId },
+        },
       );
       expect(JSON.parse(result.content[0].text)).toEqual({ id: 456 });
     });
