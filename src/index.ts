@@ -115,6 +115,14 @@ interface CommitListOptions extends ListOptions {
   author?: string;
 }
 
+interface PullRequestListOptions extends ListOptions {
+  project?: string;
+  repository?: string;
+  state?: 'OPEN' | 'MERGED' | 'DECLINED' | 'ALL';
+  author?: string;
+  direction?: 'INCOMING' | 'OUTGOING';
+}
+
 class BitbucketServer {
   private readonly server: Server;
   private readonly api: AxiosInstance;
@@ -184,7 +192,7 @@ class BitbucketServer {
   }
 
   private setupToolHandlers() {
-    const readOnlyTools = ['list_projects', 'list_repositories', 'get_pull_request', 'get_diff', 'get_reviews', 'get_activities', 'get_comments', 'search', 'get_file_content', 'browse_repository', 'list_branches', 'list_commits'];
+    const readOnlyTools = ['list_projects', 'list_repositories', 'get_pull_request', 'list_pull_requests', 'get_diff', 'get_reviews', 'get_activities', 'get_comments', 'search', 'get_file_content', 'browse_repository', 'list_branches', 'list_commits'];
     
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
@@ -412,6 +420,31 @@ class BitbucketServer {
               path: { type: 'string', description: 'Directory path to browse (empty or "/" for root directory).' },
               branch: { type: 'string', description: 'Branch or commit hash to browse (defaults to main/master branch if not specified).' },
               limit: { type: 'number', description: 'Maximum number of items to return (default: 50).' }
+            },
+            required: ['repository']
+          }
+        },
+        {
+          name: 'list_pull_requests',
+          description: 'List pull requests in a Bitbucket repository filtered by state, author, or direction. Use this to find open PRs, see your pending reviews, discover PRs awaiting merge, or get an overview of PR activity in a repository.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              project: { type: 'string', description: 'Bitbucket project key. If omitted, uses BITBUCKET_DEFAULT_PROJECT environment variable.' },
+              repository: { type: 'string', description: 'Repository slug to list pull requests from.' },
+              state: {
+                type: 'string',
+                enum: ['OPEN', 'MERGED', 'DECLINED', 'ALL'],
+                description: 'Filter by PR state (default: "OPEN"). Use "ALL" to see pull requests in any state.'
+              },
+              author: { type: 'string', description: 'Filter by author username (exact match). Only returns PRs created by this user.' },
+              direction: {
+                type: 'string',
+                enum: ['INCOMING', 'OUTGOING'],
+                description: 'Filter by direction: "INCOMING" for PRs targeting this repo (default), "OUTGOING" for PRs from this repo to other repos.'
+              },
+              limit: { type: 'number', description: 'Number of pull requests to return (default: 25, max: 1000).' },
+              start: { type: 'number', description: 'Start index for pagination (default: 0).' }
             },
             required: ['repository']
           }
@@ -668,6 +701,18 @@ class BitbucketServer {
               path: args.path as string,
               branch: args.branch as string,
               limit: args.limit as number
+            });
+          }
+
+          case 'list_pull_requests': {
+            return await this.listPullRequests({
+              project: getProject(args.project as string),
+              repository: args.repository as string,
+              state: args.state as 'OPEN' | 'MERGED' | 'DECLINED' | 'ALL',
+              author: args.author as string,
+              direction: args.direction as 'INCOMING' | 'OUTGOING',
+              limit: args.limit as number,
+              start: args.start as number
             });
           }
 
@@ -1362,6 +1407,82 @@ class BitbucketServer {
 
     return {
       content: [{ type: 'text', text: JSON.stringify(browseResults, null, 2) }]
+    };
+  }
+
+  private async listPullRequests(options: PullRequestListOptions) {
+    const { project, repository, state = 'OPEN', author, direction, limit = 25, start = 0 } = options;
+
+    if (!project || !repository) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'Project and repository are required'
+      );
+    }
+
+    const params: Record<string, string | number> = { limit, start };
+    if (state) {
+      params.state = state;
+    }
+    if (direction) {
+      params.direction = direction;
+    }
+
+    const response = await this.api.get(
+      `/projects/${project}/repos/${repository}/pull-requests`,
+      { params }
+    );
+
+    let pullRequests = response.data.values || [];
+
+    // Client-side author filter (matches against name, slug, or displayName)
+    if (author) {
+      const authorLower = author.toLowerCase();
+      pullRequests = pullRequests.filter((pr: { author: { user: { name: string; slug: string; displayName: string } } }) => {
+        const nameMatch = pr.author?.user?.name?.toLowerCase() === authorLower;
+        const slugMatch = pr.author?.user?.slug?.toLowerCase() === authorLower;
+        const displayMatch = pr.author?.user?.displayName?.toLowerCase().includes(authorLower);
+        return nameMatch || slugMatch || displayMatch;
+      });
+    }
+
+    const summary = {
+      project,
+      repository,
+      state: state || 'OPEN',
+      authorFilter: author || null,
+      total: response.data.size || response.data.values?.length || 0,
+      showing: pullRequests.length,
+      isLastPage: response.data.isLastPage,
+      nextPageStart: response.data.nextPageStart,
+      pullRequests: pullRequests.map((pr: {
+        id: number;
+        title: string;
+        state: string;
+        createdDate: number;
+        updatedDate: number;
+        author: { user: { name: string; displayName: string } };
+        fromRef: { displayId: string };
+        toRef: { displayId: string };
+        reviewers: { user: { name: string }; status: string }[];
+      }) => ({
+        id: pr.id,
+        title: pr.title,
+        state: pr.state,
+        author: pr.author?.user?.displayName || pr.author?.user?.name,
+        sourceBranch: pr.fromRef?.displayId,
+        targetBranch: pr.toRef?.displayId,
+        createdDate: pr.createdDate,
+        updatedDate: pr.updatedDate,
+        reviewers: pr.reviewers?.map((r: { user: { name: string }; status: string }) => ({
+          name: r.user?.name,
+          status: r.status
+        })) || []
+      }))
+    };
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }]
     };
   }
 

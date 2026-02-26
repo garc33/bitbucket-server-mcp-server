@@ -7,6 +7,7 @@ MCP (Model Context Protocol) server for Bitbucket Server Pull Request management
 
 ## ✨ New Features
 
+- **📋 PR Discovery**: List and filter pull requests by state, author, or direction using `list_pull_requests` (fixes #14)
 - **🌿 Branch Management**: List branches with default branch detection using `list_branches`, delete merged branches with `delete_branch`
 - **📝 Commit History**: Browse commit history with branch and author filtering using `list_commits`
 - **✅ PR Approval**: Approve and unapprove pull requests with `approve_pull_request` and `unapprove_pull_request`
@@ -301,6 +302,26 @@ Parameters:
 - `branch`: Branch or commit hash (optional, defaults to main/master)
 - `limit`: Maximum items to return (default: 50)
 
+### `list_pull_requests`
+
+**Discover and filter pull requests**: List pull requests in a repository with filtering by state, author, and direction. Returns PR metadata including title, author, branches, reviewers, and status.
+
+**Use cases:**
+- Find open PRs in a repository
+- List your own pull requests
+- See PRs awaiting review
+- Get an overview of merged or declined PRs
+- Monitor PR activity in a project
+
+Parameters:
+- `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
+- `repository` (required): Repository slug
+- `state`: Filter by PR state — `OPEN` (default), `MERGED`, `DECLINED`, or `ALL`
+- `author`: Filter by author username (exact match)
+- `direction`: `INCOMING` (PRs targeting this repo, default) or `OUTGOING` (PRs from this repo)
+- `limit`: Number of PRs to return (default: 25, max: 1000)
+- `start`: Start index for pagination (default: 0)
+
 ### `list_branches`
 
 **Explore repository branches**: List branches in a repository with optional filtering. Identifies the default branch and shows latest commit information for each branch.
@@ -443,6 +464,22 @@ get_activities --repository "my-repo" --prId 123
 merge_pull_request --repository "my-repo" --prId 123 --strategy "squash" --message "Feature: New functionality (#123)"
 ```
 
+### Discovering Pull Requests
+
+```bash
+# List open PRs in a repository (default state: OPEN)
+list_pull_requests --repository "my-repo"
+
+# List all PRs regardless of state
+list_pull_requests --repository "my-repo" --state "ALL"
+
+# Find PRs by a specific author
+list_pull_requests --repository "my-repo" --author "john.doe"
+
+# List merged PRs with pagination
+list_pull_requests --repository "my-repo" --state "MERGED" --limit 10 --start 0
+```
+
 ### Branch Management
 
 ```bash
@@ -547,6 +584,7 @@ The server supports a read-only mode for deployments where you want to prevent a
 - `list_projects` - Browse and list projects
 - `list_repositories` - Browse and list repositories
 - `get_pull_request` - View pull request details
+- `list_pull_requests` - List and filter pull requests
 - `get_diff` - View code changes and diffs
 - `get_reviews` - View review history and status
 - `get_activities` - View pull request timeline
