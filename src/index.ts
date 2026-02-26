@@ -9,13 +9,25 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import axios, { AxiosInstance } from 'axios';
 import winston from 'winston';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 
-// Configuration du logger
+// Resolve log file path: BITBUCKET_LOG_PATH env var > default (~/.bitbucket-server-mcp/bitbucket.log)
+const defaultLogDir = path.join(os.homedir(), '.bitbucket-server-mcp');
+const logFilePath = process.env.BITBUCKET_LOG_PATH || path.join(defaultLogDir, 'bitbucket.log');
+
+// Ensure log directory exists
+const logDir = path.dirname(logFilePath);
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: 'bitbucket.log' })
+    new winston.transports.File({ filename: logFilePath })
   ]
 });
 
