@@ -404,6 +404,7 @@ The server requires configuration in the VSCode MCP settings file. Here's a samp
   - `BITBUCKET_USERNAME` and `BITBUCKET_PASSWORD`: Basic authentication credentials
 - `BITBUCKET_DEFAULT_PROJECT` (optional): Default project key to use when not specified in tool calls
 - `BITBUCKET_DIFF_MAX_LINES_PER_FILE` (optional): Default maximum lines to show per file in diffs. Set to prevent large files from overwhelming output. Can be overridden by the `maxLinesPerFile` parameter in `get_diff` calls.
+- `BITBUCKET_LOG_PATH` (optional): Custom path for the log file (default: `~/.bitbucket-server-mcp/bitbucket.log`)
 - `BITBUCKET_READ_ONLY` (optional): Set to `true` to enable read-only mode
 
 **Note**: With the new optional project support, you can now:
@@ -444,4 +445,19 @@ The server supports a read-only mode for deployments where you want to prevent a
 
 ## Logging
 
-The server logs all operations to `bitbucket.log` using Winston for debugging and monitoring purposes.
+The server logs all operations using Winston for debugging and monitoring purposes.
+
+**Log file location** (in order of priority):
+1. `BITBUCKET_LOG_PATH` environment variable — custom path
+2. `~/.bitbucket-server-mcp/bitbucket.log` — default location
+
+The log directory is created automatically if it doesn't exist.
+
+**Example**: Set a custom log path in your MCP configuration:
+```json
+{
+  "env": {
+    "BITBUCKET_LOG_PATH": "/var/log/bitbucket-mcp/server.log"
+  }
+}
+```
