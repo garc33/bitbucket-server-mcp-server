@@ -98,6 +98,14 @@ interface SearchOptions extends ListOptions {
   type?: 'code' | 'file';
 }
 
+interface SearchResultItem {
+  repository: string;
+  file: string;
+  hitCount?: number;
+  pathMatches?: string[];
+  hitContexts?: string[];
+}
+
 interface FileContentOptions extends ListOptions {
   project?: string;
   repository?: string;
@@ -1305,7 +1313,7 @@ export class BitbucketServer {
         showing: codeResults.values?.length || 0,
         isLastPage: codeResults.isLastPage || true,
         nextStart: codeResults.nextStart || null,
-        results: codeResults.values?.map((result: any) => ({
+        results: codeResults.values?.map((result: SearchResultItem) => ({
           repository: result.repository,
           file: result.file,
           hitCount: result.hitCount || 0,
