@@ -70,6 +70,7 @@ Parameters:
 **Browse and discover repositories**: Explore repositories within specific projects or across all accessible projects. Returns comprehensive repository information including clone URLs and metadata.
 
 **Use cases:**
+
 - Find repository slugs for other operations
 - Explore codebase structure across projects
 - Discover repositories you have access to
@@ -86,6 +87,7 @@ Parameters:
 **Propose code changes for review**: Creates a new pull request to submit code changes, request reviews, or merge feature branches. Automatically handles branch references and reviewer assignments.
 
 **Use cases:**
+
 - Submit feature development for review
 - Propose bug fixes
 - Request code integration from feature branches
@@ -106,6 +108,7 @@ Parameters:
 **Comprehensive PR information**: Retrieves detailed pull request information including status, reviewers, commits, and all metadata. Essential for understanding PR state before taking actions.
 
 **Use cases:**
+
 - Check PR approval status
 - Review PR details and progress
 - Understand changes before merging
@@ -122,6 +125,7 @@ Parameters:
 **Integrate approved changes**: Merges an approved pull request into the target branch. Supports different merge strategies based on your workflow preferences.
 
 **Use cases:**
+
 - Complete the code review process
 - Integrate approved features
 - Apply bug fixes to main branches
@@ -143,6 +147,7 @@ Parameters:
 **Reject unsuitable changes**: Declines a pull request that should not be merged, providing feedback to the author.
 
 **Use cases:**
+
 - Reject changes that don't meet standards
 - Close PRs that conflict with project direction
 - Request significant rework
@@ -160,6 +165,7 @@ Parameters:
 **Participate in code review**: Adds comments to pull requests for review feedback, discussions, and collaboration. Supports threaded conversations.
 
 **Use cases:**
+
 - Provide code review feedback
 - Ask questions about specific changes
 - Suggest improvements
@@ -179,6 +185,7 @@ Parameters:
 **Analyze code changes**: Retrieves the code differences showing exactly what was added, removed, or modified in the pull request. Supports per-file truncation to manage large diffs effectively.
 
 **Use cases:**
+
 - Review specific code changes
 - Understand scope of modifications
 - Analyze impact before merging
@@ -196,6 +203,7 @@ Parameters:
 
 **Large File Handling:**
 When a file exceeds the `maxLinesPerFile` limit, it shows:
+
 - File headers and metadata (always preserved)
 - First 60% of allowed lines from the beginning
 - Truncation message with file statistics
@@ -207,6 +215,7 @@ When a file exceeds the `maxLinesPerFile` limit, it shows:
 **Track review progress**: Fetches review history, approval status, and reviewer feedback to understand the review state.
 
 **Use cases:**
+
 - Check if PR is ready for merging
 - See who has reviewed the changes
 - Understand review feedback
@@ -218,6 +227,7 @@ When a file exceeds the `maxLinesPerFile` limit, it shows:
 **Retrieve pull request activities**: Gets the complete activity timeline for a pull request including comments, reviews, commits, and other events.
 
 **Use cases:**
+
 - Read comment discussions and feedback
 - Review the complete PR timeline
 - Track commits added/removed from PR
@@ -225,6 +235,7 @@ When a file exceeds the `maxLinesPerFile` limit, it shows:
 - Understand the full PR lifecycle
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `prId` (required): Pull request ID
@@ -234,12 +245,14 @@ Parameters:
 **Extract PR comments only**: Filters pull request activities to return only the comments, making it easier to focus on discussion content without reviews or other activities.
 
 **Use cases:**
+
 - Read PR discussion threads
 - Extract feedback and questions
 - Focus on comment content without noise
 - Analyze conversation flow
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `prId` (required): Pull request ID
@@ -249,12 +262,14 @@ Parameters:
 **Advanced code and file search**: Search across repositories using the Bitbucket search API with support for project/repository filtering and query optimization. Searches both file contents and filenames. **Note**: Search only works on the default branch of repositories.
 
 **Use cases:**
+
 - Find specific code patterns across projects
 - Locate files by name or content
 - Search within specific projects or repositories
 - Filter by file extensions
 
 Parameters:
+
 - `query` (required): Search query string
 - `project`: Bitbucket project key to limit search scope
 - `repository`: Repository slug for repository-specific search
@@ -263,8 +278,9 @@ Parameters:
 - `start`: Start index for pagination (default: 0)
 
 **Query syntax examples:**
+
 - `"README.md"` - Find exact filename
-- `config ext:yml` - Find config in YAML files  
+- `config ext:yml` - Find config in YAML files
 - `function project:MYPROJECT` - Search for "function" in specific project
 - `bug fix repo:PROJ/my-repo` - Search in specific repository
 
@@ -273,12 +289,14 @@ Parameters:
 **Read file contents with pagination**: Retrieve the content of specific files from repositories with support for large files through pagination.
 
 **Use cases:**
+
 - Read source code files
 - View configuration files
 - Extract documentation content
 - Inspect specific file versions
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `filePath` (required): Path to the file in the repository
@@ -291,12 +309,14 @@ Parameters:
 **Explore repository structure**: Browse files and directories in repositories to understand project organization and locate specific files.
 
 **Use cases:**
+
 - Explore repository structure
 - Navigate directory trees
 - Find files and folders
 - Understand project organization
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `path`: Directory path to browse (optional, defaults to root)
@@ -308,6 +328,7 @@ Parameters:
 **Discover and filter pull requests**: List pull requests in a repository with filtering by state, author, and direction. Returns PR metadata including title, author, branches, reviewers, and status.
 
 **Use cases:**
+
 - Find open PRs in a repository
 - List your own pull requests
 - See PRs awaiting review
@@ -315,6 +336,7 @@ Parameters:
 - Monitor PR activity in a project
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `state`: Filter by PR state — `OPEN` (default), `MERGED`, `DECLINED`, or `ALL`
@@ -328,12 +350,14 @@ Parameters:
 **Explore repository branches**: List branches in a repository with optional filtering. Identifies the default branch and shows latest commit information for each branch.
 
 **Use cases:**
+
 - Find branch names for PR creation or checkout
 - Verify branch existence before operations
 - Identify the default branch
 - Search for branches by name
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `filterText`: Filter branches by name (case-insensitive partial match)
@@ -345,12 +369,14 @@ Parameters:
 **Browse commit history**: List commits in a repository with optional branch and author filtering. Use this to review changes, track contributions, or understand the evolution of a branch.
 
 **Use cases:**
+
 - Review recent changes on a branch
 - Find commits by a specific author
 - Track commit history before merging
 - Understand branch evolution
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `branch`: Branch name to list commits from (defaults to the repository's default branch)
@@ -363,11 +389,13 @@ Parameters:
 **Clean up merged branches**: Delete a branch from a repository. Includes a safety check to prevent deletion of the default branch.
 
 **Use cases:**
+
 - Clean up feature branches after PR merge
 - Remove stale or abandoned branches
 - Repository maintenance and hygiene
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `branch` (required): Branch name to delete
@@ -377,11 +405,13 @@ Parameters:
 **Approve code changes**: Approve a pull request as the current authenticated user. Records your approval on the PR, signaling that changes are ready to merge.
 
 **Use cases:**
+
 - Approve reviewed pull requests
 - Signal readiness for merge
 - Complete code review workflow
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `prId` (required): Pull request ID to approve
@@ -391,11 +421,13 @@ Parameters:
 **Retract approval**: Remove your approval from a pull request. Use this when you need to retract a previous approval after discovering issues or when the PR has changed.
 
 **Use cases:**
+
 - Retract approval after discovering issues
 - Remove approval when PR scope changes
 - Correct accidental approvals
 
 Parameters:
+
 - `project`: Bitbucket project key (optional, uses BITBUCKET_DEFAULT_PROJECT if not provided)
 - `repository` (required): Repository slug
 - `prId` (required): Pull request ID to remove approval from
@@ -583,6 +615,7 @@ The server supports a read-only mode for deployments where you want to prevent a
 **To enable read-only mode**: Set the environment variable `BITBUCKET_READ_ONLY=true`
 
 **Available tools in read-only mode:**
+
 - `list_projects` - Browse and list projects
 - `list_repositories` - Browse and list repositories
 - `get_pull_request` - View pull request details
@@ -598,6 +631,7 @@ The server supports a read-only mode for deployments where you want to prevent a
 - `list_commits` - Browse commit history
 
 **Disabled tools in read-only mode:**
+
 - `create_pull_request` - Creating new pull requests
 - `merge_pull_request` - Merging pull requests
 - `decline_pull_request` - Declining pull requests
@@ -607,6 +641,7 @@ The server supports a read-only mode for deployments where you want to prevent a
 - `unapprove_pull_request` - Removing PR approvals
 
 **Behavior:**
+
 - When `BITBUCKET_READ_ONLY` is not set or set to any value other than `true`, all tools function normally (backward compatible)
 - When `BITBUCKET_READ_ONLY=true`, write operations are filtered out and will return an error if called
 - This is perfect for production deployments, CI/CD integration, or any scenario where you need safe, read-only Bitbucket access
@@ -616,12 +651,14 @@ The server supports a read-only mode for deployments where you want to prevent a
 The server logs all operations using Winston for debugging and monitoring purposes.
 
 **Log file location** (in order of priority):
+
 1. `BITBUCKET_LOG_PATH` environment variable — custom path
 2. `~/.bitbucket-server-mcp/bitbucket.log` — default location
 
 The log directory is created automatically if it doesn't exist.
 
 **Example**: Set a custom log path in your MCP configuration:
+
 ```json
 {
   "env": {
@@ -635,20 +672,23 @@ The log directory is created automatically if it doesn't exist.
 You can add custom HTTP headers to all API requests using the `BITBUCKET_CUSTOM_HEADERS` environment variable. This is useful for Zero Trust security tokens, proxy headers, or any other headers required by your infrastructure.
 
 **Format**: Comma-separated key-value pairs where values can contain equals signs:
+
 ```
 Header-Name=value,Another-Header=value2
 ```
 
 **Single header example**:
+
 ```json
 {
   "env": {
-    "BITBUCKET_CUSTOM_HEADERS": "X-Zero-Trust-Token=eyJhbGciOiJSUzI1NiIsIng1dCI6IjdkRC1nZWNOZ1gxSk4..."
+    "BITBUCKET_CUSTOM_HEADERS": "X-Zero-Trust-Token=your-token-here"
   }
 }
 ```
 
 **Multiple headers example**:
+
 ```json
 {
   "env": {

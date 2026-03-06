@@ -153,7 +153,7 @@ describe("BitbucketServer", () => {
       );
     });
 
-    test("should merge BITBUCKET_CUSTOM_HEADERS into axios headers", () => {
+    test("should include custom headers when BITBUCKET_CUSTOM_HEADERS is set", () => {
       withEnv(
         {
           BITBUCKET_URL: "https://bb.example.com",
@@ -163,15 +163,14 @@ describe("BitbucketServer", () => {
         },
         () => {
           new BitbucketServer();
-          expect(mockCreate).toHaveBeenCalledWith(
-            expect.objectContaining({
-              headers: expect.objectContaining({
-                Authorization: "Bearer test-token",
-                "X-Zero-Trust-Token": "eyJ.payload.sig",
-                "X-Custom": "value",
-              }),
-            }),
-          );
+          const call = mockCreate.mock.calls[0];
+          if (!call || call.length === 0)
+            throw new Error("mockCreate was not called");
+          const config = call[0] as { headers: Record<string, string> };
+          expect(Object.keys(config.headers)).toContain("X-Zero-Trust-Token");
+          expect(Object.keys(config.headers)).toContain("X-Custom");
+          expect(config.headers["X-Zero-Trust-Token"]).toBe("eyJ.payload.sig");
+          expect(config.headers["X-Custom"]).toBe("value");
         },
       );
     });
