@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [18.x, 20.x, 22.x]
 
     steps:
     - uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
       run: npm run lint
     
     - name: Run tests
-      run: echo 'npm test'
+      run: npm test
     
     - name: Build
       run: npm run build
