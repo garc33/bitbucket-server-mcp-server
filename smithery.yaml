@@ -20,6 +20,32 @@ startCommand:
       bitbucketPassword:
         type: string
         description: Password for basic authentication.
+      bitbucketCustomHeaders:
+        type: string
+        description: >
+          Comma-separated extra HTTP headers appended to every request
+          (Key=Value,Key2=Value2). Useful for Zero Trust tokens or proxy
+          headers, e.g. X-Zero-Trust-Token=<token>.
+      bitbucketDefaultProject:
+        type: string
+        description: >
+          Default project key used when no project is specified in tool calls.
+          Saves typing if you mostly work within a single project.
+      bitbucketReadOnly:
+        type: boolean
+        description: >
+          Set to true to restrict the server to read-only operations.
+          All write tools (create PR, merge, add comment, delete branch, etc.) will be disabled.
+      bitbucketDiffMaxLinesPerFile:
+        type: number
+        description: >
+          Maximum number of lines to show per file in diffs. Prevents large files
+          from producing overwhelming output. Set to 0 for no limit.
+      bitbucketLogPath:
+        type: string
+        description: >
+          Custom path for the log file.
+          Defaults to ~/.bitbucket-server-mcp/bitbucket.log.
   commandFunction:
     # A function that produces the CLI command to start the MCP on stdio.
     |-
@@ -30,6 +56,11 @@ startCommand:
         BITBUCKET_URL: config.bitbucketUrl,
         BITBUCKET_TOKEN: config.bitbucketToken,
         BITBUCKET_USERNAME: config.bitbucketUsername,
-        BITBUCKET_PASSWORD: config.bitbucketPassword
+        BITBUCKET_PASSWORD: config.bitbucketPassword,
+        ...(config.bitbucketCustomHeaders && { BITBUCKET_CUSTOM_HEADERS: config.bitbucketCustomHeaders }),
+        ...(config.bitbucketDefaultProject && { BITBUCKET_DEFAULT_PROJECT: config.bitbucketDefaultProject }),
+        ...(config.bitbucketReadOnly && { BITBUCKET_READ_ONLY: 'true' }),
+        ...(config.bitbucketDiffMaxLinesPerFile != null && { BITBUCKET_DIFF_MAX_LINES_PER_FILE: String(config.bitbucketDiffMaxLinesPerFile) }),
+        ...(config.bitbucketLogPath && { BITBUCKET_LOG_PATH: config.bitbucketLogPath })
       }
     })
