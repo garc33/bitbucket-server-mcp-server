@@ -1,0 +1,178 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+jobs:
+  build:
+    name: Build and test (Node ${{ matrix.node-version }})
+    if: github.event_name == 'push' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        if: matrix.node-version == '18.x'
+        run: npm run lint
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Upload build artifact
+        if: matrix.node-version == '18.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-node-18
+          path: build/
+
+  release:
+    name: Release
+    if: github.event_name == 'push'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-node-18
+          path: build/
+
+      - name: Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pr-preview:
+    name: PR Preview
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          registry-url: https://npm.pkg.github.com
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-node-18
+          path: build/
+
+      - name: Publish preview
+        id: meta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PR_TAG="pr-${{ github.event.pull_request.number }}"
+          PREVIEW_VERSION="0.0.0-${PR_TAG}.${SHA}"
+          echo "version=${PREVIEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "pkg_name=${PKG_NAME}" >> $GITHUB_OUTPUT
+          echo "pr_tag=${PR_TAG}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${PREVIEW_VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          npm publish --tag ${PR_TAG}
+
+      - name: Post or update preview comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_VERSION: ${{ steps.meta.outputs.version }}
+          PKG_NAME: ${{ steps.meta.outputs.pkg_name }}
+          PR_TAG: ${{ steps.meta.outputs.pr_tag }}
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          MARKER="<!-- pr-preview -->"
+          BODY="${MARKER}
+          _commit: \`${SHA}\`_
+
+          \`\`\`
+          npx -y ${PKG_NAME}@${PREVIEW_VERSION}
+          \`\`\`"
+
+          COMMENT_ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -1)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+              -X PATCH --field body="$BODY"
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          fi
+
+  pr-cleanup:
+    name: PR Cleanup
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          registry-url: https://npm.pkg.github.com
+
+      - name: Remove preview dist-tag and comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          npm dist-tag rm "${PKG_NAME}" "pr-${PR_NUMBER}" || true
+
+          MARKER="<!-- pr-preview -->"
+          COMMENT_ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -1)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" -X DELETE
+          fi

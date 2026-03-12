@@ -13,7 +13,7 @@ import { parseCustomHeaders } from "./headers.js";
 import winston from 'winston';
 import path from 'path';
 import os from 'os';
-import fs from 'fs';
+import fs, { realpathSync } from 'fs';
 
 // Resolve log file path: BITBUCKET_LOG_PATH env var > default (~/.bitbucket-server-mcp/bitbucket.log)
 const defaultLogDir = path.join(os.homedir(), '.bitbucket-server-mcp');
@@ -1716,7 +1716,8 @@ export class BitbucketServer {
 }
 
 // Entry point — only runs when this module is executed directly, not when imported.
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+// realpathSync resolves symlinks so the check works when invoked via npx/npm exec.
+if (realpathSync(process.argv[1]) === new URL(import.meta.url).pathname) {
   const server = new BitbucketServer();
   server.run().catch((error) => {
     logger.error('Server error', error);
