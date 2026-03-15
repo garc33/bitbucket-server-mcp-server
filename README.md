@@ -22,29 +22,66 @@ MCP (Model Context Protocol) server for Bitbucket Server Pull Request management
 
 ## Requirements
 
-- Node.js >= 16
+- Node.js >= 18
 
 ## Installation
 
-### Installing via Smithery
+### Via Smithery
 
-To install Bitbucket Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@garc33/bitbucket-server-mcp-server):
+Install automatically for Claude Desktop via [Smithery](https://smithery.ai/server/@garc33/bitbucket-server-mcp-server):
 
 ```bash
 npx -y @smithery/cli install @garc33/bitbucket-server-mcp-server --client claude
 ```
 
-### Manual Installation
+### Claude Desktop
 
-```bash
-npm install
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "bitbucket": {
+      "command": "npx",
+      "args": ["-y", "@garc33/bitbucket-server-mcp-server"],
+      "env": {
+        "BITBUCKET_URL": "https://your-bitbucket-server.com",
+        "BITBUCKET_TOKEN": "your-access-token"
+      }
+    }
+  }
+}
 ```
 
-## Build
+### Claude Code
 
 ```bash
-npm run build
+claude mcp add bitbucket \
+  -e BITBUCKET_URL=https://your-bitbucket-server.com \
+  -e BITBUCKET_TOKEN=your-token \
+  -- npx -y @garc33/bitbucket-server-mcp-server
 ```
+
+### VS Code
+
+Add to your workspace `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "bitbucket": {
+      "command": "npx",
+      "args": ["-y", "@garc33/bitbucket-server-mcp-server"],
+      "env": {
+        "BITBUCKET_URL": "https://your-bitbucket-server.com",
+        "BITBUCKET_TOKEN": "your-access-token"
+      }
+    }
+  }
+}
+```
+
+See the [Environment Variables](#environment-variables) section for all configuration options.
 
 ## Features
 
@@ -564,30 +601,6 @@ merge_pull_request --repository "my-repo" --prId 123 --strategy "squash"
 - `winston` - Logging framework
 
 ## Configuration
-
-The server requires configuration in the VSCode MCP settings file. Here's a sample configuration:
-
-```json
-{
-  "mcpServers": {
-    "bitbucket": {
-      "command": "node",
-      "args": ["/path/to/bitbucket-server/build/index.js"],
-      "env": {
-        "BITBUCKET_URL": "https://your-bitbucket-server.com",
-        // Authentication (choose one):
-        // Option 1: Personal Access Token
-        "BITBUCKET_TOKEN": "your-access-token",
-        // Option 2: Username/Password
-        "BITBUCKET_USERNAME": "your-username",
-        "BITBUCKET_PASSWORD": "your-password",
-        // Optional: Default project
-        "BITBUCKET_DEFAULT_PROJECT": "your-default-project"
-      }
-    }
-  }
-}
-```
 
 ### Environment Variables
 

@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  build:
+    name: Build and test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x, 24.x]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        if: matrix.node-version == '24.x'
+        run: npm run lint
+
+      - run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        if: matrix.node-version == '24.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-node-24
+          path: build/
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-node-24
+          path: build/
+
+      - name: Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  pr-preview:
+    name: Publish PR preview
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-node-24
+          path: build/
+
+      - name: Publish preview
+        id: publish
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not configured, skipping preview publish"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PR_VERSION="0.0.0-pr.${{ github.event.number }}.$(git rev-parse --short HEAD)"
+          npm version "$PR_VERSION" --no-git-tag-version
+          npm publish --tag "pr-${{ github.event.number }}" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Comment on PR
+        if: steps.publish.outputs.skipped != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const sha = context.sha.substring(0, 7);
+            const version = `0.0.0-pr.${prNumber}.${sha}`;
+            const tag = `pr-${prNumber}`;
+            const body = `## Preview published\n\nInstall this PR's build:\n\`\`\`\nnpx -y @garc33/bitbucket-server-mcp-server@${tag}\n\`\`\`\n\nVersion: \`${version}\``;
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            const existing = comments.data.find(c => c.body.includes('## Preview published'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body
+              });
+            }
+
+  pr-cleanup:
+    name: Remove PR preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+
+      - name: Remove dist-tag
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not configured, nothing to clean up"
+            exit 0
+          fi
+          npm dist-tag rm @garc33/bitbucket-server-mcp-server "pr-${{ github.event.number }}" || true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

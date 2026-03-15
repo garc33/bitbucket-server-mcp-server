@@ -13,7 +13,7 @@ import { parseCustomHeaders } from "./headers.js";
 import winston from 'winston';
 import path from 'path';
 import os from 'os';
-import fs from 'fs';
+import fs, { realpathSync } from 'fs';
 
 // Resolve log file path: BITBUCKET_LOG_PATH env var > default (~/.bitbucket-server-mcp/bitbucket.log)
 const defaultLogDir = path.join(os.homedir(), '.bitbucket-server-mcp');
@@ -1708,6 +1708,10 @@ export class BitbucketServer {
     };
   }
 
+  getMcpServer(): Server {
+    return this.server;
+  }
+
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
@@ -1715,8 +1719,18 @@ export class BitbucketServer {
   }
 }
 
+// Sandbox export for Smithery capability scanning (no real credentials needed).
+export function createSandboxServer() {
+  process.env.BITBUCKET_URL = process.env.BITBUCKET_URL ?? 'https://bitbucket.example.com';
+  process.env.BITBUCKET_TOKEN = process.env.BITBUCKET_TOKEN ?? 'mock-token';
+  const instance = new BitbucketServer();
+  return instance.getMcpServer();
+}
+
 // Entry point — only runs when this module is executed directly, not when imported.
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+// realpathSync resolves symlinks so the check works when invoked via npx/npm exec.
+// import.meta.url is undefined in CJS builds (e.g. Smithery scan), so guard it.
+if (import.meta.url && realpathSync(process.argv[1]) === new URL(import.meta.url).pathname) {
   const server = new BitbucketServer();
   server.run().catch((error) => {
     logger.error('Server error', error);

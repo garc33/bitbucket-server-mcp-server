@@ -1,16 +1,19 @@
 {
-  "name": "bitbucket-server",
+  "name": "@garc33/bitbucket-server-mcp-server",
   "version": "1.0.0",
   "description": "MCP Server for Bitbucket Server PR management",
   "type": "module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "files": [
+    "build",
+    "!build/__tests__"
+  ],
   "bin": {
     "bitbucket-server-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"if (process.platform !== 'win32') require('child_process').execSync('chmod +x build/index.js')\"",
-    "postinstall": "node -e \"const fs=require('fs'); if (process.platform !== 'win32' && fs.existsSync('build/index.js')) require('child_process').execSync('chmod +x build/index.js')\"",
+    "build": "tsc",
     "start": "node build/index.js",
     "dev": "tsc -w",
     "dev:server": "npm run build && npx @modelcontextprotocol/inspector -e DEBUG=true node build/index.js",
@@ -38,9 +41,15 @@
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^24.2.5"
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
