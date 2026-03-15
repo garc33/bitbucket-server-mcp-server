@@ -1708,6 +1708,10 @@ export class BitbucketServer {
     };
   }
 
+  getMcpServer(): Server {
+    return this.server;
+  }
+
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
@@ -1715,9 +1719,18 @@ export class BitbucketServer {
   }
 }
 
+// Sandbox export for Smithery capability scanning (no real credentials needed).
+export function createSandboxServer() {
+  process.env.BITBUCKET_URL = process.env.BITBUCKET_URL ?? 'https://bitbucket.example.com';
+  process.env.BITBUCKET_TOKEN = process.env.BITBUCKET_TOKEN ?? 'mock-token';
+  const instance = new BitbucketServer();
+  return instance.getMcpServer();
+}
+
 // Entry point — only runs when this module is executed directly, not when imported.
 // realpathSync resolves symlinks so the check works when invoked via npx/npm exec.
-if (realpathSync(process.argv[1]) === new URL(import.meta.url).pathname) {
+// import.meta.url is undefined in CJS builds (e.g. Smithery scan), so guard it.
+if (import.meta.url && realpathSync(process.argv[1]) === new URL(import.meta.url).pathname) {
   const server = new BitbucketServer();
   server.run().catch((error) => {
     logger.error('Server error', error);
