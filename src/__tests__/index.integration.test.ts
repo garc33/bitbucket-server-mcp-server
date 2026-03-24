@@ -9,6 +9,8 @@ import { vi } from "vitest";
 const mockAxios = {
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
 };
 
 vi.mock("axios", () => ({
@@ -92,6 +94,12 @@ describe("BitbucketServer Integration Tests", () => {
         "delete_branch",
         "approve_pull_request",
         "unapprove_pull_request",
+        "edit_comment",
+        "delete_comment",
+        "publish_review",
+        "get_code_insights",
+        "get_dashboard_pull_requests",
+        "update_pull_request",
       ];
       expect(new Set(toolNames)).toEqual(new Set(expectedTools));
     });
@@ -415,6 +423,556 @@ describe("BitbucketServer Integration Tests", () => {
           ["APPROVED", "REVIEWED"].includes(r.action),
         ),
       ).toBe(true);
+    });
+  });
+
+  describe("create_pull_request cross-repo", () => {
+    test("should create a PR from a fork to upstream", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: { id: 200, title: "Cross-repo PR", state: "OPEN" },
+      });
+
+      const result = await client.callTool({
+        name: "create_pull_request",
+        arguments: {
+          project: "DRC",
+          repository: "service",
+          title: "Cross-repo PR",
+          description: "From fork",
+          sourceBranch: "feature-branch",
+          targetBranch: "master",
+          sourceProject: "~JOHN",
+          sourceRepository: "dr-service",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.id).toBe(200);
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/DRC/repos/service/pull-requests",
+        expect.objectContaining({
+          fromRef: expect.objectContaining({
+            id: "refs/heads/feature-branch",
+            repository: { slug: "dr-service", project: { key: "~JOHN" } },
+          }),
+          toRef: expect.objectContaining({
+            id: "refs/heads/master",
+            repository: { slug: "service", project: { key: "DRC" } },
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("add_comment with state", () => {
+    test("should create a pending draft comment", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: { id: 100, text: "Draft", state: "PENDING" },
+      });
+
+      const result = await client.callTool({
+        name: "add_comment",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          text: "Draft",
+          state: "PENDING",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.state).toBe("PENDING");
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments",
+        { text: "Draft", state: "PENDING" },
+      );
+    });
+  });
+
+  describe("add_comment_inline with state", () => {
+    test("should create a pending inline comment", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: { id: 101, text: "Inline draft", state: "PENDING" },
+      });
+
+      const result = await client.callTool({
+        name: "add_comment_inline",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          text: "Inline draft",
+          filePath: "src/main.ts",
+          line: 42,
+          lineType: "ADDED",
+          state: "PENDING",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.state).toBe("PENDING");
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments",
+        expect.objectContaining({
+          text: "Inline draft",
+          state: "PENDING",
+          anchor: expect.objectContaining({
+            path: "src/main.ts",
+            line: 42,
+            lineType: "ADDED",
+            diffType: "EFFECTIVE",
+            fileType: "TO",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("edit_comment tool", () => {
+    test("should edit an existing comment", async () => {
+      mockAxios.put.mockResolvedValueOnce({
+        data: { id: 789, text: "Updated text", version: 1 },
+      });
+
+      const result = await client.callTool({
+        name: "edit_comment",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          commentId: 789,
+          text: "Updated text",
+          version: 0,
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.text).toBe("Updated text");
+      expect(parsed.version).toBe(1);
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments/789",
+        { text: "Updated text", version: 0 },
+      );
+    });
+  });
+
+  describe("delete_comment tool", () => {
+    test("should delete a comment", async () => {
+      mockAxios.delete.mockResolvedValueOnce({ status: 204 });
+
+      const result = await client.callTool({
+        name: "delete_comment",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          commentId: 789,
+          version: 1,
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.deleted).toBe(true);
+      expect(parsed.commentId).toBe(789);
+
+      expect(mockAxios.delete).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments/789",
+        { params: { version: 1 } },
+      );
+    });
+  });
+
+  describe("publish_review tool", () => {
+    test("should publish review with approval", async () => {
+      mockAxios.put.mockResolvedValueOnce({ data: {} });
+
+      const result = await client.callTool({
+        name: "publish_review",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          commentText: "LGTM",
+          participantStatus: "APPROVED",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content[0].type).toBe("text");
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/review",
+        { commentText: "LGTM", participantStatus: "APPROVED" },
+      );
+    });
+
+    test("should publish review without status", async () => {
+      mockAxios.put.mockResolvedValueOnce({ data: {} });
+
+      await client.callTool({
+        name: "publish_review",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+        },
+      });
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/review",
+        { commentText: null },
+      );
+    });
+  });
+
+  describe("get_code_insights tool", () => {
+    test("should fetch reports and annotations", async () => {
+      mockAxios.get
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              { key: "sonarqube", title: "SonarQube", result: "PASS" },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              { path: "src/main.ts", line: 10, message: "Code smell" },
+            ],
+          },
+        });
+
+      const result = await client.callTool({
+        name: "get_code_insights",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.reports).toHaveLength(1);
+      expect(parsed.reports[0].key).toBe("sonarqube");
+      expect(parsed.annotations["sonarqube"]).toHaveLength(1);
+      expect(parsed.annotations["sonarqube"][0].message).toBe("Code smell");
+    });
+
+    test("should handle reports with no annotations", async () => {
+      mockAxios.get
+        .mockResolvedValueOnce({
+          data: { values: [{ key: "scanner", title: "Scanner" }] },
+        })
+        .mockRejectedValueOnce(new Error("Not found"));
+
+      const result = await client.callTool({
+        name: "get_code_insights",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.reports).toHaveLength(1);
+      expect(parsed.annotations["scanner"]).toEqual([]);
+    });
+  });
+
+  describe("add_comment with severity", () => {
+    test("should create a task (BLOCKER comment)", async () => {
+      mockAxios.post.mockResolvedValueOnce({
+        data: { id: 102, text: "Fix this", severity: "BLOCKER" },
+      });
+
+      const result = await client.callTool({
+        name: "add_comment",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          text: "Fix this",
+          severity: "BLOCKER",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.severity).toBe("BLOCKER");
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments",
+        { text: "Fix this", severity: "BLOCKER" },
+      );
+    });
+  });
+
+  describe("edit_comment with severity", () => {
+    test("should convert a comment to task", async () => {
+      mockAxios.put.mockResolvedValueOnce({
+        data: { id: 789, text: "Now a task", version: 1, severity: "BLOCKER" },
+      });
+
+      const result = await client.callTool({
+        name: "edit_comment",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 1,
+          commentId: 789,
+          text: "Now a task",
+          version: 0,
+          severity: "BLOCKER",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.severity).toBe("BLOCKER");
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/1/comments/789",
+        { text: "Now a task", version: 0, severity: "BLOCKER" },
+      );
+    });
+  });
+
+  describe("get_dashboard_pull_requests tool", () => {
+    test("should fetch PRs for the authenticated user", async () => {
+      mockAxios.get.mockResolvedValueOnce({
+        data: {
+          size: 1,
+          values: [
+            {
+              id: 42,
+              title: "Some PR",
+              state: "OPEN",
+              properties: { commentCount: 3, openTaskCount: 1 },
+            },
+          ],
+        },
+      });
+
+      const result = await client.callTool({
+        name: "get_dashboard_pull_requests",
+        arguments: { role: "REVIEWER", limit: 10 },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.size).toBe(1);
+      expect(parsed.values[0].title).toBe("Some PR");
+
+      expect(mockAxios.get).toHaveBeenCalledWith("/dashboard/pull-requests", {
+        params: { limit: 10, start: 0, role: "REVIEWER" },
+      });
+    });
+
+    test("should pass all filter params", async () => {
+      mockAxios.get.mockResolvedValueOnce({
+        data: { size: 0, values: [] },
+      });
+
+      await client.callTool({
+        name: "get_dashboard_pull_requests",
+        arguments: {
+          state: "OPEN",
+          role: "AUTHOR",
+          participantStatus: "APPROVED",
+          order: "NEWEST",
+          closedSince: 1700000000000,
+        },
+      });
+
+      expect(mockAxios.get).toHaveBeenCalledWith("/dashboard/pull-requests", {
+        params: {
+          limit: 25,
+          start: 0,
+          state: "OPEN",
+          role: "AUTHOR",
+          participantStatus: "APPROVED",
+          order: "NEWEST",
+          closedSince: 1700000000000,
+        },
+      });
+    });
+  });
+
+  describe("create_pull_request with default reviewers", () => {
+    test("should fetch and include default reviewers when flag is true", async () => {
+      // Repo ID lookup
+      mockAxios.get.mockResolvedValueOnce({ data: { id: 100 } });
+      // Default reviewers
+      mockAxios.get.mockResolvedValueOnce({
+        data: [
+          { name: "default-reviewer-1" },
+          { name: "default-reviewer-2" },
+        ],
+      });
+      // PR creation
+      mockAxios.post.mockResolvedValueOnce({
+        data: { id: 300, title: "Test", reviewers: [] },
+      });
+
+      await client.callTool({
+        name: "create_pull_request",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          title: "Test",
+          description: "",
+          sourceBranch: "feature",
+          targetBranch: "main",
+        },
+      });
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests",
+        expect.objectContaining({
+          reviewers: expect.arrayContaining([
+            { user: { name: "default-reviewer-1" } },
+            { user: { name: "default-reviewer-2" } },
+          ]),
+        }),
+      );
+    });
+
+    test("should merge explicit and default reviewers without duplicates", async () => {
+      mockAxios.get.mockResolvedValueOnce({ data: { id: 100 } });
+      mockAxios.get.mockResolvedValueOnce({
+        data: [{ name: "user1" }, { name: "user2" }],
+      });
+      mockAxios.post.mockResolvedValueOnce({ data: { id: 301 } });
+
+      await client.callTool({
+        name: "create_pull_request",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          title: "Test",
+          description: "",
+          sourceBranch: "feature",
+          targetBranch: "main",
+          reviewers: ["user1", "user3"],
+        },
+      });
+
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests",
+        expect.objectContaining({
+          reviewers: [
+            { user: { name: "user1" } },
+            { user: { name: "user3" } },
+            { user: { name: "user2" } },
+          ],
+        }),
+      );
+    });
+
+    test("should skip default reviewers when flag is false", async () => {
+      mockAxios.post.mockResolvedValueOnce({ data: { id: 302 } });
+
+      await client.callTool({
+        name: "create_pull_request",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          title: "Test",
+          description: "",
+          sourceBranch: "feature",
+          targetBranch: "main",
+          includeDefaultReviewers: false,
+        },
+      });
+
+      // Should NOT have called GET for repo ID or default reviewers
+      expect(mockAxios.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("update_pull_request tool", () => {
+    test("should update title while preserving reviewers", async () => {
+      mockAxios.get.mockResolvedValueOnce({
+        data: {
+          id: 42,
+          version: 3,
+          title: "Old title",
+          description: "Desc",
+          reviewers: [{ user: { name: "reviewer1" } }],
+        },
+      });
+      mockAxios.put.mockResolvedValueOnce({
+        data: { id: 42, version: 4, title: "New title" },
+      });
+
+      const result = await client.callTool({
+        name: "update_pull_request",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 42,
+          title: "New title",
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.title).toBe("New title");
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/42",
+        expect.objectContaining({
+          title: "New title",
+          description: "Desc",
+          reviewers: [{ user: { name: "reviewer1" } }],
+        }),
+      );
+    });
+
+    test("should replace reviewers when explicitly provided", async () => {
+      mockAxios.get.mockResolvedValueOnce({
+        data: {
+          id: 42,
+          version: 3,
+          title: "Title",
+          description: "Desc",
+          reviewers: [{ user: { name: "old-reviewer" } }],
+        },
+      });
+      mockAxios.put.mockResolvedValueOnce({
+        data: { id: 42, version: 4 },
+      });
+
+      await client.callTool({
+        name: "update_pull_request",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          prId: 42,
+          reviewers: ["new-reviewer"],
+        },
+      });
+
+      expect(mockAxios.put).toHaveBeenCalledWith(
+        "/projects/TEST/repos/my-repo/pull-requests/42",
+        expect.objectContaining({
+          reviewers: [{ user: { name: "new-reviewer" } }],
+        }),
+      );
     });
   });
 
