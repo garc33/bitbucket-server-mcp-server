@@ -1,0 +1,9 @@
+node_modules
+build
+.git
+.github
+.vscode
+.claude
+.playwright-mcp
+*.md
+!README.md
