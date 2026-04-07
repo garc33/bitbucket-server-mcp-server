@@ -13,6 +13,11 @@
 
 ## Quickstart
 
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=bitbucket-server&inputs=%5B%7B%22id%22%3A%22bitbucket_url%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22Bitbucket%20Server%20URL%20%28e.g.%20https%3A//bitbucket.example.com%29%22%7D%2C%7B%22id%22%3A%22bitbucket_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22Bitbucket%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40pavel-kalmykov/bitbucket-server-mcp%22%5D%2C%22env%22%3A%7B%22BITBUCKET_URL%22%3A%22%24%7Binput%3Abitbucket_url%7D%22%2C%22BITBUCKET_TOKEN%22%3A%22%24%7Binput%3Abitbucket_token%7D%22%7D%7D)
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=bitbucket-server&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBwYXZlbC1rYWxteWtvdi9iaXRidWNrZXQtc2VydmVyLW1jcCJdLCJlbnYiOnsiQklUQlVDS0VUX1VSTCI6IllPVVJfQklUQlVDS0VUX1VSTCIsIkJJVEJVQ0tFVF9UT0tFTiI6IllPVVJfQklUQlVDS0VUX1RPS0VOIn19)
+
+Or via Claude Code:
+
 ```console
 claude mcp add bitbucket \
   -e BITBUCKET_URL=https://your-bitbucket-server.com \
@@ -106,6 +111,50 @@ Add to your workspace `.vscode/mcp.json`:
 ```json
 {
   "servers": {
+    "bitbucket": {
+      "command": "npx",
+      "args": ["-y", "@pavel-kalmykov/bitbucket-server-mcp"],
+      "env": {
+        "BITBUCKET_URL": "https://your-bitbucket-server.com",
+        "BITBUCKET_TOKEN": "your-access-token"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+[Click here to install](https://cursor.com/en/install-mcp?name=bitbucket-server&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBwYXZlbC1rYWxteWtvdi9iaXRidWNrZXQtc2VydmVyLW1jcCJdLCJlbnYiOnsiQklUQlVDS0VUX1VSTCI6IllPVVJfQklUQlVDS0VUX1VSTCIsIkJJVEJVQ0tFVF9UT0tFTiI6IllPVVJfQklUQlVDS0VUX1RPS0VOIn19), or add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "bitbucket": {
+      "command": "npx",
+      "args": ["-y", "@pavel-kalmykov/bitbucket-server-mcp"],
+      "env": {
+        "BITBUCKET_URL": "https://your-bitbucket-server.com",
+        "BITBUCKET_TOKEN": "your-access-token"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
     "bitbucket": {
       "command": "npx",
       "args": ["-y", "@pavel-kalmykov/bitbucket-server-mcp"],
