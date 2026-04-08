@@ -47,7 +47,7 @@ export function registerRepositoryTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields to return. Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: key, id, name, description, type, public. Use '*all' for the full API response.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -99,7 +99,7 @@ export function registerRepositoryTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields to return. Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: slug, id, name, description, state, forkable, project (key, name). Use '*all' for the full API response with clone URLs and links.",
           ),
       },
       annotations: { readOnlyHint: true },

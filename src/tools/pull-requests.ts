@@ -227,7 +227,7 @@ export function registerPullRequestTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields to return (e.g. 'id,title,state,author.user.name'). Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: id, title, description, state, dates, author (name, displayName, status), branches (displayId), reviewers (name, displayName, status, approved), properties (commentCount, taskCount). Use '*all' for the full API response with all nested objects.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -449,7 +449,7 @@ export function registerPullRequestTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields per PR (e.g. 'id,title,state'). Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: id, title, description, state, dates, author (name, displayName, status), branches (displayId), reviewers (name, displayName, status, approved), properties (commentCount, taskCount). Use '*all' for the full API response with all nested objects.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -553,7 +553,7 @@ export function registerPullRequestTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields per PR (e.g. 'id,title,state'). Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: id, title, description, state, dates, author (name, displayName, status), branches (displayId), reviewers (name, displayName, status, approved), properties (commentCount, taskCount). Use '*all' for the full API response with all nested objects.",
           ),
       },
       annotations: { readOnlyHint: true },

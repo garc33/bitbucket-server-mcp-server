@@ -26,7 +26,20 @@ Workflow tips:
 - For cross-repo PRs from forks: use sourceProject/sourceRepository in create_pull_request.
 - get_pr_activity returns reviews, comments, and events; use the filter param to narrow results.
 - manage_comment consolidates create/edit/delete of comments. Use severity: BLOCKER to create tasks.
-- submit_review consolidates approve/unapprove/publish actions.`;
+- submit_review consolidates approve/unapprove/publish actions.
+
+Response curation:
+Read tools return curated (compact) responses by default. Use the 'fields' parameter to customize:
+- Omit 'fields': returns a curated summary with the most useful fields.
+- fields="*all": returns the complete raw API response (useful when you need fields not in the default set).
+- fields="id,title,state,author.user.name": returns exactly those fields. Use dot notation for nested paths.
+
+Available fields in the Bitbucket API (common across entities):
+- PR: id, version, title, description, state, open, closed, locked, createdDate, updatedDate, closedDate, fromRef.id, fromRef.displayId, fromRef.latestCommit, fromRef.repository.slug, fromRef.repository.project.key, toRef.id, toRef.displayId, toRef.latestCommit, toRef.repository.slug, toRef.repository.project.key, author.user.name, author.user.displayName, author.user.emailAddress, author.status, author.approved, reviewers[].user.name, reviewers[].user.displayName, reviewers[].status, reviewers[].approved, reviewers[].lastReviewedCommit, participants[].user.name, participants[].status, properties.commentCount, properties.openTaskCount, properties.resolvedTaskCount, properties.mergeResult.outcome, links.self[].href
+- Project: key, id, name, description, type, public, links.self[].href
+- Repository: slug, id, name, description, state, forkable, public, archived, project.key, project.name, origin.slug, origin.project.key, links.clone[].href, links.self[].href
+- Branch: id, displayId, type, latestCommit, isDefault, metadata
+- Commit: id, displayId, message, author.name, author.emailAddress, authorTimestamp, committerTimestamp, parents[].id`;
 
 export function createServer(options?: BitbucketServerOptions) {
   const config = parseConfig(options);

@@ -68,7 +68,7 @@ export function registerBranchTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields to return. Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: id, displayId, type, latestCommit, isDefault, metadata. Use '*all' for the full API response.",
           ),
       },
       annotations: { readOnlyHint: true },
@@ -153,7 +153,7 @@ export function registerBranchTools(
           .string()
           .optional()
           .describe(
-            "Comma-separated fields to return. Use '*all' for the full API response. Defaults to a curated summary.",
+            "Comma-separated fields to return. Defaults to: id, displayId, message, author (name, email), authorTimestamp, parents. Use '*all' for the full API response.",
           ),
       },
       annotations: { readOnlyHint: true },
