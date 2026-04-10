@@ -1,3 +1,10 @@
+## [0.1.5](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.1.4...v0.1.5) (2026-04-10)
+
+
+### Bug Fixes
+
+* coerce numeric params, add upload_attachment, complete annotations ([#14](https://github.com/pavel-kalmykov/bitbucket-server-mcp/issues/14)) ([3bf5ed7](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/3bf5ed79e9cef534ad249a124ac95b64c0bebd78))
+
 ## [0.1.4](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.1.3...v0.1.4) (2026-04-08)
 
 
