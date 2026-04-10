@@ -1,3 +1,10 @@
+## [0.1.6](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.1.5...v0.1.6) (2026-04-10)
+
+
+### Bug Fixes
+
+* merge strategy + feat: resolve comments + refactor: prompt ([#15](https://github.com/pavel-kalmykov/bitbucket-server-mcp/issues/15)) ([2eb0c68](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/2eb0c68a07ad574fad8f76ab948a95c4c9cae4c0))
+
 ## [0.1.5](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.1.4...v0.1.5) (2026-04-10)
 
 
