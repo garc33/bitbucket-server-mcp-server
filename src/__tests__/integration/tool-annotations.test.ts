@@ -1,33 +1,16 @@
-import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerRepositoryTools } from "../../tools/repositories.js";
 import { registerBranchTools } from "../../tools/branches.js";
 import { registerPullRequestTools } from "../../tools/pull-requests.js";
 import { registerCommentTools } from "../../tools/comments.js";
 import { registerSearchTools } from "../../tools/search.js";
 import { registerInsightTools } from "../../tools/insights.js";
+import { createMockClients } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClients(): ApiClients {
-  const mock = () =>
-    ({
-      get: vi.fn(),
-      post: vi.fn(),
-      put: vi.fn(),
-      delete: vi.fn(),
-    }) as unknown as ReturnType<typeof ky.create>;
-  return {
-    api: mock(),
-    insights: mock(),
-    search: mock(),
-    branchUtils: mock(),
-    defaultReviewers: mock(),
-  };
-}
 
 describe("Tool annotations", () => {
   let client: Client;

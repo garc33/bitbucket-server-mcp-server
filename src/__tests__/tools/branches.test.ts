@@ -2,29 +2,10 @@ import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerBranchTools } from "../../tools/branches.js";
+import { createMockClients, mockJson } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Branch tools", () => {
   let server: McpServer;
@@ -212,9 +193,7 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_commits",
@@ -254,9 +233,7 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_commits",
@@ -272,9 +249,7 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve({ values: [], size: 0, isLastPage: true }),
-      });
+      mockJson(mockClients.api.get, { values: [], size: 0, isLastPage: true });
 
       await client.callTool({
         name: "list_commits",
@@ -290,16 +265,8 @@ describe("Branch tools", () => {
 
   describe("delete_branch", () => {
     test("should delete a non-default branch", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () =>
-          Promise.resolve({ displayId: "main", id: "refs/heads/main" }),
-      });
-
-      (
-        mockClients.branchUtils.post as ReturnType<typeof vi.fn>
-      ).mockReturnValue({
-        json: () => Promise.resolve({}),
-      });
+      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
+      mockJson(mockClients.branchUtils.post, {});
 
       const result = await client.callTool({
         name: "delete_branch",
@@ -323,10 +290,7 @@ describe("Branch tools", () => {
     });
 
     test("should refuse to delete the default branch", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () =>
-          Promise.resolve({ displayId: "main", id: "refs/heads/main" }),
-      });
+      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
 
       const result = await client.callTool({
         name: "delete_branch",
@@ -341,16 +305,8 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () =>
-          Promise.resolve({ displayId: "main", id: "refs/heads/main" }),
-      });
-
-      (
-        mockClients.branchUtils.post as ReturnType<typeof vi.fn>
-      ).mockReturnValue({
-        json: () => Promise.resolve({}),
-      });
+      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
+      mockJson(mockClients.branchUtils.post, {});
 
       await client.callTool({
         name: "delete_branch",

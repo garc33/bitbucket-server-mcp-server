@@ -1,32 +1,12 @@
 import { writeFile, mkdir } from "node:fs/promises";
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerRepositoryTools } from "../../tools/repositories.js";
+import { createMockClients, mockJson } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-// Create mock ky instance
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Repository tools", () => {
   let server: McpServer;
@@ -77,9 +57,7 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_projects",
@@ -111,9 +89,7 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_projects",
@@ -145,9 +121,7 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_repositories",
@@ -162,9 +136,7 @@ describe("Repository tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve({ values: [], size: 0, isLastPage: true }),
-      });
+      mockJson(mockClients.api.get, { values: [], size: 0, isLastPage: true });
 
       await client.callTool({ name: "list_repositories", arguments: {} });
 
@@ -177,17 +149,14 @@ describe("Repository tools", () => {
 
   describe("browse_repository", () => {
     test("should browse root directory", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () =>
-          Promise.resolve({
-            children: {
-              values: [
-                { path: { toString: "src" }, type: "DIRECTORY" },
-                { path: { toString: "README.md" }, type: "FILE" },
-              ],
-              size: 2,
-            },
-          }),
+      mockJson(mockClients.api.get, {
+        children: {
+          values: [
+            { path: { toString: "src" }, type: "DIRECTORY" },
+            { path: { toString: "README.md" }, type: "FILE" },
+          ],
+          size: 2,
+        },
       });
 
       const result = await client.callTool({
@@ -221,9 +190,7 @@ describe("Repository tools", () => {
         ],
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "upload_attachment",
@@ -264,9 +231,7 @@ describe("Repository tools", () => {
         ],
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "upload_attachment",
@@ -285,13 +250,10 @@ describe("Repository tools", () => {
 
   describe("get_file_content", () => {
     test("should read file content", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () =>
-          Promise.resolve({
-            lines: [{ text: "line 1" }, { text: "line 2" }],
-            size: 2,
-            isLastPage: true,
-          }),
+      mockJson(mockClients.api.get, {
+        lines: [{ text: "line 1" }, { text: "line 2" }],
+        size: 2,
+        isLastPage: true,
       });
 
       const result = await client.callTool({

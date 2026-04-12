@@ -2,29 +2,10 @@ import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerInsightTools } from "../../tools/insights.js";
+import { createMockClients, mockJson } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Insight tools", () => {
   let server: McpServer;
@@ -125,9 +106,7 @@ describe("Insight tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      (mockClients.insights.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve({ values: [] }),
-      });
+      mockJson(mockClients.insights.get, { values: [] });
 
       await client.callTool({
         name: "get_code_insights",
@@ -182,9 +161,7 @@ describe("Insight tools", () => {
     });
 
     test("should handle empty reports list", async () => {
-      (mockClients.insights.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve({ values: [] }),
-      });
+      mockJson(mockClients.insights.get, { values: [] });
 
       const result = await client.callTool({
         name: "get_code_insights",

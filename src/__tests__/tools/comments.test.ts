@@ -1,30 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerCommentTools } from "../../tools/comments.js";
+import { createMockClients, mockJson, mockVoid } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Comment tools", () => {
   let server: McpServer;
@@ -63,9 +44,7 @@ describe("Comment tools", () => {
     test("should create a general comment", async () => {
       const mockResponse = { id: 1, text: "Looks good!", version: 0 };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -98,9 +77,7 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -136,9 +113,7 @@ describe("Comment tools", () => {
         anchor: { path: "src/main.ts", line: 10, lineType: "ADDED" },
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -182,9 +157,7 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -215,9 +188,7 @@ describe("Comment tools", () => {
     test("should edit a comment", async () => {
       const mockResponse = { id: 1, text: "Updated text", version: 1 };
 
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.put, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -252,9 +223,7 @@ describe("Comment tools", () => {
         version: 1,
       };
 
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.put, mockResponse);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -281,9 +250,7 @@ describe("Comment tools", () => {
     });
 
     test("should delete a comment", async () => {
-      (mockClients.api.delete as ReturnType<typeof vi.fn>).mockReturnValue(
-        Promise.resolve(),
-      );
+      mockVoid(mockClients.api.delete);
 
       const result = await client.callTool({
         name: "manage_comment",
@@ -319,9 +286,7 @@ describe("Comment tools", () => {
         status: "APPROVED",
       };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.post, mockResponse);
 
       const result = await client.callTool({
         name: "submit_review",
@@ -342,9 +307,7 @@ describe("Comment tools", () => {
     });
 
     test("should unapprove a pull request", async () => {
-      (mockClients.api.delete as ReturnType<typeof vi.fn>).mockReturnValue(
-        Promise.resolve(),
-      );
+      mockVoid(mockClients.api.delete);
 
       const result = await client.callTool({
         name: "submit_review",
@@ -372,9 +335,7 @@ describe("Comment tools", () => {
         status: "APPROVED",
       };
 
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.put, mockResponse);
 
       const result = await client.callTool({
         name: "submit_review",

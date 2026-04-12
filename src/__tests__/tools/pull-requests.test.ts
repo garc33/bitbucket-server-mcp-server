@@ -2,29 +2,10 @@ import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerPullRequestTools } from "../../tools/pull-requests.js";
+import { createMockClients, mockJson } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Pull request tools", () => {
   let server: McpServer;
@@ -66,21 +47,11 @@ describe("Pull request tools", () => {
       const mockPr = { id: 1, title: "My PR", state: "OPEN" };
 
       // Mock repo lookup for default reviewers (source repo)
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve({ id: 10 }),
-      });
-
+      mockJson(mockClients.api.get, { id: 10 });
       // Mock default reviewers fetch
-      (
-        mockClients.defaultReviewers.get as ReturnType<typeof vi.fn>
-      ).mockReturnValueOnce({
-        json: () => Promise.resolve([]),
-      });
-
+      mockJson(mockClients.defaultReviewers.get, []);
       // Mock PR creation
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.post, mockPr);
 
       const result = await client.callTool({
         name: "create_pull_request",
@@ -123,26 +94,13 @@ describe("Pull request tools", () => {
       const mockPr = { id: 2, title: "Cross-repo PR", state: "OPEN" };
 
       // Mock source repo lookup
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve({ id: 20 }),
-      });
-
+      mockJson(mockClients.api.get, { id: 20 });
       // Mock target repo lookup (different repo, so both are fetched)
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve({ id: 30 }),
-      });
-
+      mockJson(mockClients.api.get, { id: 30 });
       // Mock default reviewers fetch
-      (
-        mockClients.defaultReviewers.get as ReturnType<typeof vi.fn>
-      ).mockReturnValueOnce({
-        json: () => Promise.resolve([{ name: "bob" }]),
-      });
-
+      mockJson(mockClients.defaultReviewers.get, [{ name: "bob" }]);
       // Mock PR creation
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.post, mockPr);
 
       const result = await client.callTool({
         name: "create_pull_request",
@@ -183,19 +141,9 @@ describe("Pull request tools", () => {
     test("should deduplicate default reviewers with explicit reviewers", async () => {
       const mockPr = { id: 3, title: "Dedup PR", state: "OPEN" };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve({ id: 10 }),
-      });
-
-      (
-        mockClients.defaultReviewers.get as ReturnType<typeof vi.fn>
-      ).mockReturnValueOnce({
-        json: () => Promise.resolve([{ name: "alice" }, { name: "carol" }]),
-      });
-
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.get, { id: 10 });
+      mockJson(mockClients.defaultReviewers.get, [{ name: "alice" }, { name: "carol" }]);
+      mockJson(mockClients.api.post, mockPr);
 
       await client.callTool({
         name: "create_pull_request",
@@ -226,9 +174,7 @@ describe("Pull request tools", () => {
     test("should skip default reviewers when includeDefaultReviewers is false", async () => {
       const mockPr = { id: 4, title: "No defaults", state: "OPEN" };
 
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.post, mockPr);
 
       await client.callTool({
         name: "create_pull_request",
@@ -254,9 +200,7 @@ describe("Pull request tools", () => {
     test("should get pull request details", async () => {
       const mockPr = { id: 42, title: "Test PR", state: "OPEN", version: 3 };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.get, mockPr);
 
       const result = await client.callTool({
         name: "get_pull_request",
@@ -274,9 +218,7 @@ describe("Pull request tools", () => {
     });
 
     test("should use default project", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve({ id: 1 }),
-      });
+      mockJson(mockClients.api.get, { id: 1 });
 
       await client.callTool({
         name: "get_pull_request",
@@ -304,13 +246,9 @@ describe("Pull request tools", () => {
       const updatedPr = { ...existingPr, title: "New title" };
 
       // GET current PR
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(existingPr),
-      });
+      mockJson(mockClients.api.get, existingPr);
       // PUT updated PR
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(updatedPr),
-      });
+      mockJson(mockClients.api.put, updatedPr);
 
       const result = await client.callTool({
         name: "update_pull_request",
@@ -348,15 +286,10 @@ describe("Pull request tools", () => {
         reviewers: [{ user: { name: "bob" } }],
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(existingPr),
-      });
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () =>
-          Promise.resolve({
-            ...existingPr,
-            reviewers: [{ user: { name: "carol" } }],
-          }),
+      mockJson(mockClients.api.get, existingPr);
+      mockJson(mockClients.api.put, {
+        ...existingPr,
+        reviewers: [{ user: { name: "carol" } }],
       });
 
       await client.callTool({
@@ -389,15 +322,10 @@ describe("Pull request tools", () => {
         reviewers: [],
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(existingPr),
-      });
-      (mockClients.api.put as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () =>
-          Promise.resolve({
-            ...existingPr,
-            toRef: { id: "refs/heads/develop", displayId: "develop" },
-          }),
+      mockJson(mockClients.api.get, existingPr);
+      mockJson(mockClients.api.put, {
+        ...existingPr,
+        toRef: { id: "refs/heads/develop", displayId: "develop" },
       });
 
       await client.callTool({
@@ -429,13 +357,9 @@ describe("Pull request tools", () => {
       const mergedPr = { id: 5, version: 13, state: "MERGED" };
 
       // GET for version
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
+      mockJson(mockClients.api.get, mockPr);
       // POST merge
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mergedPr),
-      });
+      mockJson(mockClients.api.post, mergedPr);
 
       const result = await client.callTool({
         name: "merge_pull_request",
@@ -465,12 +389,8 @@ describe("Pull request tools", () => {
       const mockPr = { id: 5, version: 12, state: "OPEN" };
       const mergedPr = { id: 5, version: 13, state: "MERGED" };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mergedPr),
-      });
+      mockJson(mockClients.api.get, mockPr);
+      mockJson(mockClients.api.post, mergedPr);
 
       await client.callTool({
         name: "merge_pull_request",
@@ -495,12 +415,8 @@ describe("Pull request tools", () => {
       const mockPr = { id: 5, version: 12, state: "OPEN" };
       const mergedPr = { id: 5, version: 13, state: "MERGED" };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mergedPr),
-      });
+      mockJson(mockClients.api.get, mockPr);
+      mockJson(mockClients.api.post, mergedPr);
 
       await client.callTool({
         name: "merge_pull_request",
@@ -527,12 +443,8 @@ describe("Pull request tools", () => {
       const mockPr = { id: 7, version: 4, state: "OPEN" };
       const declinedPr = { id: 7, version: 5, state: "DECLINED" };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(mockPr),
-      });
-      (mockClients.api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.resolve(declinedPr),
-      });
+      mockJson(mockClients.api.get, mockPr);
+      mockJson(mockClients.api.post, declinedPr);
 
       const result = await client.callTool({
         name: "decline_pull_request",
@@ -580,9 +492,7 @@ describe("Pull request tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_pull_requests",
@@ -615,9 +525,7 @@ describe("Pull request tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "list_pull_requests",
@@ -642,9 +550,7 @@ describe("Pull request tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockResponse),
-      });
+      mockJson(mockClients.api.get, mockResponse);
 
       const result = await client.callTool({
         name: "get_dashboard_pull_requests",
@@ -681,9 +587,7 @@ describe("Pull request tools", () => {
         ],
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockActivities),
-      });
+      mockJson(mockClients.api.get, mockActivities);
 
       const result = await client.callTool({
         name: "get_pr_activity",
@@ -704,9 +608,7 @@ describe("Pull request tools", () => {
         ],
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockActivities),
-      });
+      mockJson(mockClients.api.get, mockActivities);
 
       const result = await client.callTool({
         name: "get_pr_activity",
@@ -738,9 +640,7 @@ describe("Pull request tools", () => {
         ],
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.resolve(mockActivities),
-      });
+      mockJson(mockClients.api.get, mockActivities);
 
       const result = await client.callTool({
         name: "get_pr_activity",

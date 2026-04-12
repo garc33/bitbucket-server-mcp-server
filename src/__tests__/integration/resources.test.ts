@@ -1,30 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import ky from "ky";
 import { registerResources } from "../../resources/index.js";
+import { createMockClients, mockJson } from "../test-utils.js";
 import type { ApiClients } from "../../client.js";
 import { ApiCache } from "../../utils/cache.js";
-
-function createMockClient() {
-  return {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as ReturnType<typeof ky.create>;
-}
-
-function createMockClients(): ApiClients {
-  return {
-    api: createMockClient(),
-    insights: createMockClient(),
-    search: createMockClient(),
-    branchUtils: createMockClient(),
-    defaultReviewers: createMockClient(),
-  };
-}
 
 describe("Resources", () => {
   let server: McpServer;
@@ -57,12 +38,9 @@ describe("Resources", () => {
   });
 
   test("should list available resources", async () => {
-    (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-      json: () =>
-        Promise.resolve({
-          values: [{ key: "PROJ", name: "Project", description: "Desc" }],
-          size: 1,
-        }),
+    mockJson(mockClients.api.get, {
+      values: [{ key: "PROJ", name: "Project", description: "Desc" }],
+      size: 1,
     });
 
     const result = await client.listResources();
@@ -70,15 +48,12 @@ describe("Resources", () => {
   });
 
   test("should read bitbucket://projects resource", async () => {
-    (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-      json: () =>
-        Promise.resolve({
-          values: [
-            { key: "PROJ", name: "Project One" },
-            { key: "TEST", name: "Test Project" },
-          ],
-          size: 2,
-        }),
+    mockJson(mockClients.api.get, {
+      values: [
+        { key: "PROJ", name: "Project One" },
+        { key: "TEST", name: "Test Project" },
+      ],
+      size: 2,
     });
 
     const result = await client.readResource({ uri: "bitbucket://projects" });
