@@ -4,14 +4,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerRepositoryTools } from "../../tools/repositories.js";
-import { createMockClients, mockJson } from "../test-utils.js";
-import type { ApiClients } from "../../client.js";
+import {
+  type MockApiClients,
+  createMockClients,
+  mockJson,
+} from "../test-utils.js";
 import { ApiCache } from "../../utils/cache.js";
 
 describe("Repository tools", () => {
   let server: McpServer;
   let client: Client;
-  let mockClients: ApiClients;
+  let mockClients: MockApiClients;
   let cache: ApiCache;
   let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
 

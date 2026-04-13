@@ -64,7 +64,8 @@ describe("logging", () => {
   });
 
   test("should not throw when server is not initialized", () => {
-    initLogging(undefined as unknown as McpServer);
+    // @ts-expect-error testing undefined to verify runtime safety
+    initLogging(undefined);
     expect(() => logger.info("no server")).not.toThrow();
   });
 

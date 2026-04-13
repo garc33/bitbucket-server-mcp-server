@@ -1,16 +1,20 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerInsightTools } from "../../tools/insights.js";
-import { createMockClients, mockJson } from "../test-utils.js";
-import type { ApiClients } from "../../client.js";
+import {
+  type MockApiClients,
+  createMockClients,
+  fakeResponse,
+  mockJson,
+} from "../test-utils.js";
 import { ApiCache } from "../../utils/cache.js";
 
 describe("Insight tools", () => {
   let server: McpServer;
   let client: Client;
-  let mockClients: ApiClients;
+  let mockClients: MockApiClients;
   let cache: ApiCache;
   let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
 
@@ -71,18 +75,22 @@ describe("Insight tools", () => {
         ],
       };
 
-      (mockClients.insights.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.endsWith("/reports")) {
-            return { json: () => Promise.resolve(mockReports) };
+      mockClients.insights.get.mockImplementation(
+        (url: string | URL | Request) => {
+          if (String(url).endsWith("/reports")) {
+            return fakeResponse({ json: () => Promise.resolve(mockReports) });
           }
-          if (url.includes("/reports/sonar/annotations")) {
-            return { json: () => Promise.resolve(sonarAnnotations) };
+          if (String(url).includes("/reports/sonar/annotations")) {
+            return fakeResponse({
+              json: () => Promise.resolve(sonarAnnotations),
+            });
           }
-          if (url.includes("/reports/coverage/annotations")) {
-            return { json: () => Promise.resolve(coverageAnnotations) };
+          if (String(url).includes("/reports/coverage/annotations")) {
+            return fakeResponse({
+              json: () => Promise.resolve(coverageAnnotations),
+            });
           }
-          return { json: () => Promise.resolve({ values: [] }) };
+          return fakeResponse({ json: () => Promise.resolve({ values: [] }) });
         },
       );
 
@@ -124,14 +132,14 @@ describe("Insight tools", () => {
         values: [{ key: "broken-report", title: "Broken", result: "PASS" }],
       };
 
-      (mockClients.insights.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.endsWith("/reports")) {
-            return { json: () => Promise.resolve(mockReports) };
+      mockClients.insights.get.mockImplementation(
+        (url: string | URL | Request) => {
+          if (String(url).endsWith("/reports")) {
+            return fakeResponse({ json: () => Promise.resolve(mockReports) });
           }
-          return {
+          return fakeResponse({
             json: () => Promise.reject(new Error("Annotations not available")),
-          };
+          });
         },
       );
 
@@ -148,9 +156,9 @@ describe("Insight tools", () => {
     });
 
     test("should handle reports fetch error", async () => {
-      (mockClients.insights.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.reject(new Error("Server error")),
-      });
+      mockClients.insights.get.mockReturnValue(
+        fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
+      );
 
       const result = await client.callTool({
         name: "get_code_insights",
@@ -212,7 +220,11 @@ describe("Insight tools", () => {
 
       mockJson(mockClients.buildStatus.get, {
         values: [
-          { state: "FAILED", name: "Build #99", url: "https://ci.example.com/99" },
+          {
+            state: "FAILED",
+            name: "Build #99",
+            url: "https://ci.example.com/99",
+          },
         ],
       });
 

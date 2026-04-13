@@ -1,16 +1,21 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerPullRequestTools } from "../../tools/pull-requests.js";
-import { createMockClients, mockJson } from "../test-utils.js";
-import type { ApiClients } from "../../client.js";
+import {
+  type MockApiClients,
+  createMockClients,
+  mockJson,
+  mockText,
+  mockError,
+} from "../test-utils.js";
 import { ApiCache } from "../../utils/cache.js";
 
 describe("Pull request tools", () => {
   let server: McpServer;
   let client: Client;
-  let mockClients: ApiClients;
+  let mockClients: MockApiClients;
   let cache: ApiCache;
   let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
 
@@ -691,9 +696,7 @@ describe("Pull request tools", () => {
         " line3",
       ].join("\n");
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        text: () => Promise.resolve(rawDiff),
-      });
+      mockText(mockClients.api.get, rawDiff);
 
       const result = await client.callTool({
         name: "get_diff",
@@ -708,9 +711,7 @@ describe("Pull request tools", () => {
     });
 
     test("should pass contextLines and withComments to searchParams", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        text: () => Promise.resolve("diff content"),
-      });
+      mockText(mockClients.api.get, "diff content");
 
       await client.callTool({
         name: "get_diff",
@@ -736,9 +737,7 @@ describe("Pull request tools", () => {
         "diff --git a/big.ts b/big.ts\n" +
         Array.from({ length: 1000 }, (_, i) => `+line${i}`).join("\n");
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        text: () => Promise.resolve(rawDiff),
-      });
+      mockText(mockClients.api.get, rawDiff);
 
       const result = await client.callTool({
         name: "get_diff",
@@ -769,9 +768,7 @@ describe("Pull request tools", () => {
       });
 
       // diff-stats-summary returns 404 on older versions
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-        json: () => Promise.reject(new Error("Not Found")),
-      });
+      mockError(mockClients.api.get, new Error("Not Found"));
 
       const result = await client.callTool({
         name: "get_diff",

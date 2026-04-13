@@ -1,16 +1,20 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerBranchTools } from "../../tools/branches.js";
-import { createMockClients, mockJson } from "../test-utils.js";
-import type { ApiClients } from "../../client.js";
+import {
+  type MockApiClients,
+  createMockClients,
+  fakeResponse,
+  mockJson,
+} from "../test-utils.js";
 import { ApiCache } from "../../utils/cache.js";
 
 describe("Branch tools", () => {
   let server: McpServer;
   let client: Client;
-  let mockClients: ApiClients;
+  let mockClients: MockApiClients;
   let cache: ApiCache;
   let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
 
@@ -55,14 +59,14 @@ describe("Branch tools", () => {
         id: "refs/heads/main",
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.includes("default-branch")) {
-            return { json: () => Promise.resolve(defaultBranchResponse) };
-          }
-          return { json: () => Promise.resolve(branchesResponse) };
-        },
-      );
+      mockClients.api.get.mockImplementation((url: string | URL | Request) => {
+        if (String(url).includes("default-branch")) {
+          return fakeResponse({
+            json: () => Promise.resolve(defaultBranchResponse),
+          });
+        }
+        return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
+      });
 
       const result = await client.callTool({
         name: "list_branches",
@@ -79,17 +83,15 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.includes("default-branch")) {
-            return { json: () => Promise.resolve(null) };
-          }
-          return {
-            json: () =>
-              Promise.resolve({ values: [], size: 0, isLastPage: true }),
-          };
-        },
-      );
+      mockClients.api.get.mockImplementation((url: string | URL | Request) => {
+        if (String(url).includes("default-branch")) {
+          return fakeResponse({ json: () => Promise.resolve(null) });
+        }
+        return fakeResponse({
+          json: () =>
+            Promise.resolve({ values: [], size: 0, isLastPage: true }),
+        });
+      });
 
       await client.callTool({
         name: "list_branches",
@@ -124,14 +126,14 @@ describe("Branch tools", () => {
         extraField: "also kept",
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.includes("default-branch")) {
-            return { json: () => Promise.resolve(defaultBranchResponse) };
-          }
-          return { json: () => Promise.resolve(branchesResponse) };
-        },
-      );
+      mockClients.api.get.mockImplementation((url: string | URL | Request) => {
+        if (String(url).includes("default-branch")) {
+          return fakeResponse({
+            json: () => Promise.resolve(defaultBranchResponse),
+          });
+        }
+        return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
+      });
 
       const result = await client.callTool({
         name: "list_branches",
@@ -152,14 +154,14 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      (mockClients.api.get as ReturnType<typeof vi.fn>).mockImplementation(
-        (url: string) => {
-          if (url.includes("default-branch")) {
-            return { json: () => Promise.reject(new Error("Not found")) };
-          }
-          return { json: () => Promise.resolve(branchesResponse) };
-        },
-      );
+      mockClients.api.get.mockImplementation((url: string | URL | Request) => {
+        if (String(url).includes("default-branch")) {
+          return fakeResponse({
+            json: () => Promise.reject(new Error("Not found")),
+          });
+        }
+        return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
+      });
 
       const result = await client.callTool({
         name: "list_branches",
@@ -265,7 +267,10 @@ describe("Branch tools", () => {
 
   describe("delete_branch", () => {
     test("should delete a non-default branch", async () => {
-      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
+      mockJson(mockClients.api.get, {
+        displayId: "main",
+        id: "refs/heads/main",
+      });
       mockJson(mockClients.branchUtils.post, {});
 
       const result = await client.callTool({
@@ -290,7 +295,10 @@ describe("Branch tools", () => {
     });
 
     test("should refuse to delete the default branch", async () => {
-      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
+      mockJson(mockClients.api.get, {
+        displayId: "main",
+        id: "refs/heads/main",
+      });
 
       const result = await client.callTool({
         name: "delete_branch",
@@ -305,7 +313,10 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, { displayId: "main", id: "refs/heads/main" });
+      mockJson(mockClients.api.get, {
+        displayId: "main",
+        id: "refs/heads/main",
+      });
       mockJson(mockClients.branchUtils.post, {});
 
       await client.callTool({

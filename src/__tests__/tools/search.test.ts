@@ -1,16 +1,20 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerSearchTools } from "../../tools/search.js";
-import { createMockClients, mockJson } from "../test-utils.js";
-import type { ApiClients } from "../../client.js";
+import {
+  type MockApiClients,
+  createMockClients,
+  fakeResponse,
+  mockJson,
+} from "../test-utils.js";
 import { ApiCache } from "../../utils/cache.js";
 
 describe("Search tools", () => {
   let server: McpServer;
   let client: Client;
-  let mockClients: ApiClients;
+  let mockClients: MockApiClients;
   let cache: ApiCache;
   let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
 
@@ -67,7 +71,11 @@ describe("Search tools", () => {
     });
 
     test("should prepend project filter when project is provided", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -80,7 +88,11 @@ describe("Search tools", () => {
     });
 
     test("should prepend repo filter when repository is provided", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -97,7 +109,11 @@ describe("Search tools", () => {
     });
 
     test("should use default project for repo filter when project is not provided", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -114,7 +130,11 @@ describe("Search tools", () => {
     });
 
     test("should wrap query in quotes when type is file", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -127,7 +147,11 @@ describe("Search tools", () => {
     });
 
     test("should apply both repo filter and file type together", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -149,7 +173,11 @@ describe("Search tools", () => {
     });
 
     test("should pass custom limit and start", async () => {
-      mockJson(mockClients.search.get, { values: [], size: 0, isLastPage: true });
+      mockJson(mockClients.search.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
       await client.callTool({
         name: "search",
@@ -163,9 +191,11 @@ describe("Search tools", () => {
 
     test("should handle errors", async () => {
       // mockJson can't be used here: the json() call must reject, not resolve
-      (mockClients.search.get as ReturnType<typeof vi.fn>).mockReturnValue({
-        json: () => Promise.reject(new Error("Network error")),
-      });
+      mockClients.search.get.mockReturnValue(
+        fakeResponse({
+          json: () => Promise.reject(new Error("Network error")),
+        }),
+      );
 
       const result = await client.callTool({
         name: "search",
