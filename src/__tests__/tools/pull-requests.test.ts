@@ -10,7 +10,7 @@ import {
   mockText,
   mockError,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Pull request tools", () => {
   let server: McpServer;
@@ -24,7 +24,13 @@ describe("Pull request tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerPullRequestTools(server, mockClients, cache, "DEFAULT", 500);
+    registerPullRequestTools({
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+      maxLinesPerFile: 500,
+    });
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

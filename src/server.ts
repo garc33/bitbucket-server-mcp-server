@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { parseConfig } from "./config.js";
-import { createApiClients } from "./client.js";
-import { ApiCache } from "./utils/cache.js";
+import { createApiClients } from "./http/client.js";
+import { ApiCache } from "./http/cache.js";
 import { registerRepositoryTools } from "./tools/repositories.js";
 import { registerBranchTools } from "./tools/branches.js";
 import { registerPullRequestTools } from "./tools/pull-requests.js";
@@ -10,8 +10,9 @@ import { registerSearchTools } from "./tools/search.js";
 import { registerInsightTools } from "./tools/insights.js";
 import { registerResources } from "./resources/index.js";
 import { registerPrompts } from "./prompts/index.js";
-import { initLogging } from "./utils/logging.js";
+import { initLogging } from "./logging.js";
 import type { BitbucketServerOptions } from "./types.js";
+import type { ToolContext } from "./tools/shared.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -84,23 +85,20 @@ export function createServer(options?: BitbucketServerOptions) {
     },
   });
 
-  registerRepositoryTools(
-    filteredServer,
+  const ctx: ToolContext = {
+    server: filteredServer,
     clients,
     cache,
-    config.defaultProject,
-  );
-  registerBranchTools(filteredServer, clients, cache, config.defaultProject);
-  registerPullRequestTools(
-    filteredServer,
-    clients,
-    cache,
-    config.defaultProject,
-    config.maxLinesPerFile,
-  );
-  registerCommentTools(filteredServer, clients, cache, config.defaultProject);
-  registerSearchTools(filteredServer, clients, cache, config.defaultProject);
-  registerInsightTools(filteredServer, clients, cache, config.defaultProject);
+    defaultProject: config.defaultProject,
+    maxLinesPerFile: config.maxLinesPerFile,
+  };
+
+  registerRepositoryTools(ctx);
+  registerBranchTools(ctx);
+  registerPullRequestTools(ctx);
+  registerCommentTools(ctx);
+  registerSearchTools(ctx);
+  registerInsightTools(ctx);
 
   registerResources(server, clients, cache);
   registerPrompts(server);

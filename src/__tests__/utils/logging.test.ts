@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { initLogging, logger } from "../../utils/logging.js";
+import { initLogging, logger } from "../../logging.js";
 
 describe("logging", () => {
   let server: McpServer;

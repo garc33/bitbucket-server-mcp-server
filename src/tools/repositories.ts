@@ -1,36 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ApiClients } from "../client.js";
-import type { ApiCache } from "../utils/cache.js";
-import { formatResponse, toolAnnotations } from "../utils/response.js";
-import { handleToolError } from "../utils/errors.js";
+import { formatResponse } from "../response/format.js";
+import { toolAnnotations } from "../response/annotations.js";
+import { handleToolError } from "../http/errors.js";
 import {
   curateList,
   DEFAULT_PROJECT_FIELDS,
   DEFAULT_REPOSITORY_FIELDS,
-} from "../utils/curate.js";
+} from "../response/curate.js";
+import { resolveProject } from "./shared.js";
+import type { ToolContext } from "./shared.js";
 
-function resolveProject(
-  provided: string | undefined,
-  defaultProject?: string,
-): string {
-  const project = provided || defaultProject;
-  if (!project) {
-    throw new Error(
-      "Project is required. Provide it as a parameter or set BITBUCKET_DEFAULT_PROJECT.",
-    );
-  }
-  return project;
-}
-
-export function registerRepositoryTools(
-  server: McpServer,
-  clients: ApiClients,
-  cache: ApiCache,
-  defaultProject?: string,
-) {
+export function registerRepositoryTools(ctx: ToolContext) {
+  const { server, clients, defaultProject } = ctx;
   server.registerTool(
     "list_projects",
     {
@@ -246,7 +229,10 @@ export function registerRepositoryTools(
           .string()
           .describe("Absolute path to the file on the local filesystem."),
       },
-      annotations: toolAnnotations({ readOnlyHint: false, idempotentHint: false }),
+      annotations: toolAnnotations({
+        readOnlyHint: false,
+        idempotentHint: false,
+      }),
     },
     async ({ project, repository, filePath }) => {
       try {
@@ -259,10 +245,9 @@ export function registerRepositoryTools(
         formData.append("files", blob, fileName);
 
         const data = await clients.api
-          .post(
-            `projects/${resolvedProject}/repos/${repository}/attachments`,
-            { body: formData },
-          )
+          .post(`projects/${resolvedProject}/repos/${repository}/attachments`, {
+            body: formData,
+          })
           .json<{
             attachments: Array<{
               id: number;

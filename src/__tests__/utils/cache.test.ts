@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

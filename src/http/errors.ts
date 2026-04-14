@@ -1,4 +1,4 @@
-import { logger } from "./logging.js";
+import { logger } from "../logging.js";
 
 interface ToolErrorResult {
   [key: string]: unknown;

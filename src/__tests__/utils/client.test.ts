@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { createApiClients } from "../../client.js";
+import { createApiClients } from "../../http/client.js";
 import type { BitbucketConfig } from "../../types.js";
 
 const config: BitbucketConfig = {

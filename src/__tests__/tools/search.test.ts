@@ -9,7 +9,7 @@ import {
   fakeResponse,
   mockJson,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Search tools", () => {
   let server: McpServer;
@@ -23,7 +23,12 @@ describe("Search tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerSearchTools(server, mockClients, cache, "DEFAULT");
+    registerSearchTools({
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+    });
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

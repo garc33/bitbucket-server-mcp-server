@@ -1,5 +1,8 @@
 import { describe, test, expect } from "vitest";
-import { formatResponse, formatCompactResponse } from "../../utils/response.js";
+import {
+  formatResponse,
+  formatCompactResponse,
+} from "../../response/format.js";
 
 describe("formatResponse", () => {
   test("should wrap data in MCP content format", () => {

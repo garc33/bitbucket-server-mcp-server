@@ -1,6 +1,6 @@
 import ky, { type KyInstance, type Options } from "ky";
-import type { BitbucketConfig } from "./types.js";
-import { logger } from "./utils/logging.js";
+import type { BitbucketConfig } from "../types.js";
+import { logger } from "../logging.js";
 
 export interface ApiClients {
   api: KyInstance;

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { formatApiError, isHttpError } from "../../utils/errors.js";
+import { formatApiError, isHttpError } from "../../http/errors.js";
 
 describe("formatApiError", () => {
   test("should format 401 with auth guidance", () => {

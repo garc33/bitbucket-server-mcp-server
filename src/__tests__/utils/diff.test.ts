@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { truncateDiff } from "../../utils/diff.js";
+import { truncateDiff } from "../../diff.js";
 
 const SMALL_DIFF = [
   "diff --git a/file.ts b/file.ts",

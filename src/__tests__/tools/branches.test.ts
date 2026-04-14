@@ -9,7 +9,7 @@ import {
   fakeResponse,
   mockJson,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Branch tools", () => {
   let server: McpServer;
@@ -23,7 +23,12 @@ describe("Branch tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerBranchTools(server, mockClients, cache, "DEFAULT");
+    registerBranchTools({
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+    });
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

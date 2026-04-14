@@ -1,34 +1,17 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ApiClients } from "../client.js";
-import type { ApiCache } from "../utils/cache.js";
-import { formatResponse, toolAnnotations } from "../utils/response.js";
-import { handleToolError } from "../utils/errors.js";
-
-function resolveProject(
-  provided: string | undefined,
-  defaultProject?: string,
-): string {
-  const project = provided || defaultProject;
-  if (!project) {
-    throw new Error(
-      "Project is required. Provide it as a parameter or set BITBUCKET_DEFAULT_PROJECT.",
-    );
-  }
-  return project;
-}
+import { formatResponse } from "../response/format.js";
+import { toolAnnotations } from "../response/annotations.js";
+import { handleToolError } from "../http/errors.js";
+import { resolveProject } from "./shared.js";
+import type { ToolContext } from "./shared.js";
 
 interface Report {
   key: string;
   [key: string]: unknown;
 }
 
-export function registerInsightTools(
-  server: McpServer,
-  clients: ApiClients,
-  cache: ApiCache,
-  defaultProject?: string,
-) {
+export function registerInsightTools(ctx: ToolContext) {
+  const { server, clients, defaultProject } = ctx;
   server.registerTool(
     "get_code_insights",
     {
@@ -104,9 +87,7 @@ export function registerInsightTools(
         commitId: z
           .string()
           .optional()
-          .describe(
-            "Full commit hash. Use this or prId, not both.",
-          ),
+          .describe("Full commit hash. Use this or prId, not both."),
       },
       annotations: toolAnnotations(),
     },

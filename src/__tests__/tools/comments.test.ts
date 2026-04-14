@@ -9,7 +9,7 @@ import {
   mockJson,
   mockVoid,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Comment tools", () => {
   let server: McpServer;
@@ -23,7 +23,12 @@ describe("Comment tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerCommentTools(server, mockClients, cache, "DEFAULT");
+    registerCommentTools({
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+    });
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

@@ -6,7 +6,7 @@ import {
   DEFAULT_REPOSITORY_FIELDS,
   DEFAULT_BRANCH_FIELDS,
   DEFAULT_COMMIT_FIELDS,
-} from "../../utils/curate.js";
+} from "../../response/curate.js";
 
 describe("curateResponse", () => {
   const fullPr = {

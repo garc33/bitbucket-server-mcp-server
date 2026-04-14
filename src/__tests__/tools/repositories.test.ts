@@ -9,7 +9,7 @@ import {
   createMockClients,
   mockJson,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Repository tools", () => {
   let server: McpServer;
@@ -23,7 +23,12 @@ describe("Repository tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerRepositoryTools(server, mockClients, cache, "DEFAULT");
+    registerRepositoryTools({
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+    });
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

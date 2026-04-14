@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ApiClients } from "../client.js";
-import type { ApiCache } from "../utils/cache.js";
+import type { ApiClients } from "../http/client.js";
+import type { ApiCache } from "../http/cache.js";
 
 export function registerResources(
   server: McpServer,

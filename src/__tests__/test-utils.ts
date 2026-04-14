@@ -1,7 +1,7 @@
 import { type MockProxy, mock } from "vitest-mock-extended";
 import type { KyInstance } from "ky";
 import type { KyResponse, ResponsePromise } from "ky";
-import type { ApiClients } from "../client.js";
+import type { ApiClients } from "../http/client.js";
 
 export type MockApiClients = {
   [K in keyof ApiClients]: MockProxy<ApiClients[K]>;

@@ -8,7 +8,7 @@ import {
   createMockClients,
   mockJson,
 } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Resources", () => {
   let server: McpServer;

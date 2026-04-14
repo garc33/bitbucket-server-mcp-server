@@ -9,7 +9,7 @@ import { registerCommentTools } from "../../tools/comments.js";
 import { registerSearchTools } from "../../tools/search.js";
 import { registerInsightTools } from "../../tools/insights.js";
 import { createMockClients } from "../test-utils.js";
-import { ApiCache } from "../../utils/cache.js";
+import { ApiCache } from "../../http/cache.js";
 
 describe("Tool annotations", () => {
   let client: Client;
@@ -21,12 +21,19 @@ describe("Tool annotations", () => {
     const mockClients = createMockClients();
     const cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerRepositoryTools(server, mockClients, cache, "DEFAULT");
-    registerBranchTools(server, mockClients, cache, "DEFAULT");
-    registerPullRequestTools(server, mockClients, cache, "DEFAULT", 500);
-    registerCommentTools(server, mockClients, cache, "DEFAULT");
-    registerSearchTools(server, mockClients, cache, "DEFAULT");
-    registerInsightTools(server, mockClients, cache, "DEFAULT");
+    const ctx = {
+      server,
+      clients: mockClients,
+      cache,
+      defaultProject: "DEFAULT",
+      maxLinesPerFile: 500,
+    };
+    registerRepositoryTools(ctx);
+    registerBranchTools(ctx);
+    registerPullRequestTools(ctx);
+    registerCommentTools(ctx);
+    registerSearchTools(ctx);
+    registerInsightTools(ctx);
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;
