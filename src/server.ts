@@ -6,6 +6,7 @@ import { registerRepositoryTools } from "./tools/repositories.js";
 import { registerBranchTools } from "./tools/branches.js";
 import { registerPullRequestTools } from "./tools/pull-requests.js";
 import { registerCommentTools } from "./tools/comments.js";
+import { registerReviewTools } from "./tools/reviews.js";
 import { registerSearchTools } from "./tools/search.js";
 import { registerInsightTools } from "./tools/insights.js";
 import { registerResources } from "./resources/index.js";
@@ -97,6 +98,7 @@ export function createServer(options?: BitbucketServerOptions) {
   registerBranchTools(ctx);
   registerPullRequestTools(ctx);
   registerCommentTools(ctx);
+  registerReviewTools(ctx);
   registerSearchTools(ctx);
   registerInsightTools(ctx);
 

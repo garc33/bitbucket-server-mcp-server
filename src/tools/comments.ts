@@ -4,9 +4,141 @@ import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
 import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
+import type { ApiClients } from "../http/client.js";
+
+interface CommentActionContext {
+  clients: ApiClients;
+  basePath: string;
+  resolvedProject: string;
+  repository: string;
+  prId: number;
+  text?: string;
+  commentId?: number;
+  version?: number;
+  parentId?: number;
+  state?: "OPEN" | "PENDING" | "RESOLVED";
+  severity?: "NORMAL" | "BLOCKER";
+  filePath?: string;
+  line?: number;
+  lineType?: "ADDED" | "REMOVED";
+  emoticon?: string;
+}
+
+interface CommentAnchor {
+  path: string;
+  lineType?: "ADDED" | "REMOVED";
+  line?: number;
+  diffType: "EFFECTIVE";
+  fileType: "TO";
+}
+
+interface CreateCommentBody {
+  text?: string;
+  parent?: { id: number };
+  state?: string;
+  severity?: string;
+  anchor?: CommentAnchor;
+}
+
+interface EditCommentBody {
+  text?: string;
+  version?: number;
+  severity?: string;
+  state?: string;
+}
+
+const commentActions: Record<
+  string,
+  (ctx: CommentActionContext) => Promise<ReturnType<typeof formatResponse>>
+> = {
+  create: async ({
+    clients,
+    basePath,
+    text,
+    parentId,
+    state,
+    severity,
+    filePath,
+    line,
+    lineType,
+  }) => {
+    const body: CreateCommentBody = {
+      text,
+      parent: parentId ? { id: parentId } : undefined,
+      ...(state && { state }),
+      ...(severity && { severity }),
+      ...(filePath && {
+        anchor: {
+          path: filePath,
+          lineType,
+          line,
+          diffType: "EFFECTIVE" as const,
+          fileType: "TO" as const,
+        },
+      }),
+    };
+    const data = await clients.api.post(basePath, { json: body }).json();
+    return formatResponse(data);
+  },
+
+  edit: async ({
+    clients,
+    basePath,
+    commentId,
+    text,
+    version,
+    severity,
+    state,
+  }) => {
+    const body: EditCommentBody = {
+      text,
+      version,
+      ...(severity && { severity }),
+      ...(state && { state }),
+    };
+    const data = await clients.api
+      .put(`${basePath}/${commentId}`, { json: body })
+      .json();
+    return formatResponse(data);
+  },
+
+  delete: async ({ clients, basePath, commentId, version }) => {
+    await clients.api.delete(`${basePath}/${commentId}`, {
+      searchParams: { version: version! },
+    });
+    return formatResponse({ deleted: true, commentId });
+  },
+
+  react: async ({
+    clients,
+    resolvedProject,
+    repository,
+    prId,
+    commentId,
+    emoticon,
+  }) => {
+    const reactionPath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/comments/${commentId}/reactions/${emoticon}`;
+    await clients.commentLikes.put(reactionPath);
+    return formatResponse({ react: true, commentId, emoticon });
+  },
+
+  unreact: async ({
+    clients,
+    resolvedProject,
+    repository,
+    prId,
+    commentId,
+    emoticon,
+  }) => {
+    const reactionPath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/comments/${commentId}/reactions/${emoticon}`;
+    await clients.commentLikes.delete(reactionPath);
+    return formatResponse({ unreact: true, commentId, emoticon });
+  },
+};
 
 export function registerCommentTools(ctx: ToolContext) {
   const { server, clients, defaultProject } = ctx;
+
   server.registerTool(
     "manage_comment",
     {
@@ -29,7 +161,7 @@ export function registerCommentTools(ctx: ToolContext) {
         commentId: z
           .number()
           .optional()
-          .describe("Comment ID (required for edit and delete)."),
+          .describe("Comment ID (required for edit, delete, react, unreact)."),
         version: z
           .number()
           .optional()
@@ -44,7 +176,7 @@ export function registerCommentTools(ctx: ToolContext) {
           .enum(["OPEN", "PENDING", "RESOLVED"])
           .optional()
           .describe(
-            "Comment state. PENDING = draft (create only). RESOLVED = mark as resolved (edit only). OPEN = reopen a resolved comment (edit only).",
+            "Comment state. PENDING = draft (create only). RESOLVED = mark as resolved (edit only). OPEN = reopen (edit only).",
           ),
         severity: z
           .enum(["NORMAL", "BLOCKER"])
@@ -76,143 +208,28 @@ export function registerCommentTools(ctx: ToolContext) {
         idempotentHint: false,
       }),
     },
-    async ({
-      action,
-      project,
-      repository,
-      prId,
-      text,
-      commentId,
-      version,
-      parentId,
-      state,
-      severity,
-      filePath,
-      line,
-      lineType,
-      emoticon,
-    }) => {
+    async (params) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
-        const basePath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/comments`;
-
-        if (action === "create") {
-          const body: Record<string, unknown> = {
-            text,
-            parent: parentId ? { id: parentId } : undefined,
-            ...(state && { state }),
-            ...(severity && { severity }),
-            ...(filePath && {
-              anchor: {
-                path: filePath,
-                lineType,
-                line,
-                diffType: "EFFECTIVE",
-                fileType: "TO",
-              },
-            }),
-          };
-
-          const data = await clients.api.post(basePath, { json: body }).json();
-          return formatResponse(data);
-        }
-
-        if (action === "edit") {
-          const body: Record<string, unknown> = {
-            text,
-            version,
-            ...(severity && { severity }),
-            ...(state && { state }),
-          };
-
-          const data = await clients.api
-            .put(`${basePath}/${commentId}`, { json: body })
-            .json();
-          return formatResponse(data);
-        }
-
-        if (action === "react" || action === "unreact") {
-          const reactionPath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/comments/${commentId}/reactions/${emoticon}`;
-          if (action === "react") {
-            await clients.commentLikes.put(reactionPath);
-          } else {
-            await clients.commentLikes.delete(reactionPath);
-          }
-          return formatResponse({ [action]: true, commentId, emoticon });
-        }
-
-        // delete
-        await clients.api.delete(`${basePath}/${commentId}`, {
-          searchParams: { version: version! },
+        const resolvedProject = resolveProject(params.project, defaultProject);
+        const basePath = `projects/${resolvedProject}/repos/${params.repository}/pull-requests/${params.prId}/comments`;
+        const handler = commentActions[params.action];
+        return await handler({
+          clients,
+          basePath,
+          resolvedProject,
+          repository: params.repository,
+          prId: params.prId,
+          text: params.text,
+          commentId: params.commentId,
+          version: params.version,
+          parentId: params.parentId,
+          state: params.state,
+          severity: params.severity,
+          filePath: params.filePath,
+          line: params.line,
+          lineType: params.lineType,
+          emoticon: params.emoticon,
         });
-        return formatResponse({ deleted: true, commentId });
-      } catch (error) {
-        return handleToolError(error);
-      }
-    },
-  );
-
-  server.registerTool(
-    "submit_review",
-    {
-      description:
-        'Approve, unapprove, or publish a review on a pull request. Use "approve" to approve, "unapprove" to remove your approval, and "publish" to submit a review with an optional overview comment and status.',
-      inputSchema: {
-        action: z
-          .enum(["approve", "unapprove", "publish"])
-          .describe("Review action to perform."),
-        project: z
-          .string()
-          .optional()
-          .describe("Project key. Defaults to BITBUCKET_DEFAULT_PROJECT."),
-        repository: z.string().describe("Repository slug."),
-        prId: z.coerce.number().describe("Pull request ID."),
-        commentText: z
-          .string()
-          .optional()
-          .describe("Overview comment text (for publish action)."),
-        participantStatus: z
-          .enum(["APPROVED", "NEEDS_WORK"])
-          .optional()
-          .describe("Participant status to set (for publish action)."),
-      },
-      annotations: toolAnnotations({
-        readOnlyHint: false,
-        idempotentHint: false,
-      }),
-    },
-    async ({
-      action,
-      project,
-      repository,
-      prId,
-      commentText,
-      participantStatus,
-    }) => {
-      try {
-        const resolvedProject = resolveProject(project, defaultProject);
-        const prPath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}`;
-
-        if (action === "approve") {
-          const data = await clients.api.post(`${prPath}/approve`).json();
-          return formatResponse(data);
-        }
-
-        if (action === "unapprove") {
-          await clients.api.delete(`${prPath}/approve`);
-          return formatResponse({ unapproved: true, prId });
-        }
-
-        // publish
-        const body: Record<string, unknown> = {
-          commentText: commentText ?? null,
-          ...(participantStatus && { participantStatus }),
-        };
-
-        const data = await clients.api
-          .put(`${prPath}/review`, { json: body })
-          .json();
-        return formatResponse(data);
       } catch (error) {
         return handleToolError(error);
       }
@@ -233,10 +250,7 @@ export function registerCommentTools(ctx: ToolContext) {
       try {
         const data = await clients.emoticons
           .get("search", { searchParams: { query } })
-          .json<{
-            values: Array<{ shortcut: string; url: string }>;
-          }>();
-
+          .json<{ values: Array<{ shortcut: string }> }>();
         return formatResponse(data.values.map((e) => e.shortcut));
       } catch (error) {
         return handleToolError(error);
