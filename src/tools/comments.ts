@@ -2,7 +2,6 @@ import { z } from "zod";
 import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 import type { ApiClients } from "../http/client.js";
 
@@ -137,7 +136,7 @@ const commentActions: Record<
 };
 
 export function registerCommentTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
 
   server.registerTool(
     "manage_comment",
@@ -210,7 +209,7 @@ export function registerCommentTools(ctx: ToolContext) {
     },
     async (params) => {
       try {
-        const resolvedProject = resolveProject(params.project, defaultProject);
+        const resolvedProject = ctx.resolveProject(params.project);
         const basePath = `projects/${resolvedProject}/repos/${params.repository}/pull-requests/${params.prId}/comments`;
         const handler = commentActions[params.action];
         return await handler({

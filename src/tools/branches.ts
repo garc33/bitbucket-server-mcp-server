@@ -8,7 +8,6 @@ import {
   DEFAULT_BRANCH_FIELDS,
   DEFAULT_COMMIT_FIELDS,
 } from "../response/curate.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 
 interface CommitAuthor {
@@ -23,7 +22,7 @@ interface Commit {
 }
 
 export function registerBranchTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
   server.registerTool(
     "list_branches",
     {
@@ -65,7 +64,7 @@ export function registerBranchTools(ctx: ToolContext) {
       fields,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const searchParams: Record<string, string | number> = { limit, start };
         if (filterText) searchParams.filterText = filterText;
 
@@ -151,7 +150,7 @@ export function registerBranchTools(ctx: ToolContext) {
       fields,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const searchParams: Record<string, string | number> = { limit, start };
         if (branch) searchParams.until = branch;
 
@@ -211,7 +210,7 @@ export function registerBranchTools(ctx: ToolContext) {
     },
     async ({ project, repository, branch }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
 
         const defaultBranch = await clients.api
           .get(`projects/${resolvedProject}/repos/${repository}/default-branch`)

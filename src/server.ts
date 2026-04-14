@@ -13,7 +13,7 @@ import { registerResources } from "./resources/index.js";
 import { registerPrompts } from "./prompts/index.js";
 import { initLogging } from "./logging.js";
 import type { BitbucketServerOptions } from "./types.js";
-import type { ToolContext } from "./tools/shared.js";
+import { ToolContext } from "./tools/shared.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -86,13 +86,13 @@ export function createServer(options?: BitbucketServerOptions) {
     },
   });
 
-  const ctx: ToolContext = {
+  const ctx = new ToolContext({
     server: filteredServer,
     clients,
     cache,
     defaultProject: config.defaultProject,
     maxLinesPerFile: config.maxLinesPerFile,
-  };
+  });
 
   registerRepositoryTools(ctx);
   registerBranchTools(ctx);

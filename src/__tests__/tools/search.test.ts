@@ -9,6 +9,7 @@ import {
   fakeResponse,
   mockJson,
 } from "../test-utils.js";
+import { ToolContext } from "../../tools/shared.js";
 import { ApiCache } from "../../http/cache.js";
 
 describe("Search tools", () => {
@@ -23,12 +24,14 @@ describe("Search tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerSearchTools({
-      server,
-      clients: mockClients,
-      cache,
-      defaultProject: "DEFAULT",
-    });
+    registerSearchTools(
+      new ToolContext({
+        server,
+        clients: mockClients,
+        cache,
+        defaultProject: "DEFAULT",
+      }),
+    );
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;

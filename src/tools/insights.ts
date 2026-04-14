@@ -2,7 +2,6 @@ import { z } from "zod";
 import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 
 interface Report {
@@ -11,7 +10,7 @@ interface Report {
 }
 
 export function registerInsightTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
   server.registerTool(
     "get_code_insights",
     {
@@ -29,7 +28,7 @@ export function registerInsightTools(ctx: ToolContext) {
     },
     async ({ project, repository, pullRequestId }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const basePath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${pullRequestId}`;
 
         const reportsData = await clients.insights
@@ -99,7 +98,7 @@ export function registerInsightTools(ctx: ToolContext) {
           if (!repository) {
             throw new Error("repository is required when using prId.");
           }
-          const resolvedProject = resolveProject(project, defaultProject);
+          const resolvedProject = ctx.resolveProject(project);
           const pr = await clients.api
             .get(
               `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}`,

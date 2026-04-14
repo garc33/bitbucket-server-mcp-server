@@ -8,7 +8,7 @@ import {
   curateList,
   DEFAULT_PR_FIELDS,
 } from "../response/curate.js";
-import { resolveProject } from "./shared.js";
+import { mergeDefaultReviewers } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 
 interface PrAuthor {
@@ -38,26 +38,36 @@ interface PullRequest {
 
 interface Activity {
   action: string;
-  user?: { name: string; [key: string]: unknown };
-  comment?: {
-    author?: { name: string; [key: string]: unknown };
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
+  user?: { name: string; displayName?: string; slug?: string };
+  comment?: { author?: { name: string } };
 }
 
-interface Reviewer {
-  name: string;
-  [key: string]: unknown;
+interface CreatePrBody {
+  title: string;
+  description?: string;
+  fromRef: {
+    id: string;
+    repository: { slug: string; project: { key: string } };
+  };
+  toRef: {
+    id: string;
+    repository: { slug: string; project: { key: string } };
+  };
+  reviewers: Array<{ user: { name: string } }>;
+}
+
+interface MergePrBody {
+  version: number;
+  message?: string;
+}
+
+interface DeclinePrBody {
+  version: number;
+  message?: string;
 }
 
 export function registerPullRequestTools(ctx: ToolContext) {
-  const {
-    server,
-    clients,
-    defaultProject,
-    maxLinesPerFile: defaultMaxLinesPerFile,
-  } = ctx;
+  const { server, clients } = ctx;
   // ── create_pull_request ──────────────────────────────────────────────
   server.registerTool(
     "create_pull_request",
@@ -114,65 +124,29 @@ export function registerPullRequestTools(ctx: ToolContext) {
       includeDefaultReviewers,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const srcProject = sourceProject || resolvedProject;
         const srcRepo = sourceRepository || repository;
 
-        const allReviewers = (reviewers ?? []).map((name) => ({
+        const explicitReviewers = (reviewers ?? []).map((name) => ({
           user: { name },
         }));
 
-        // Fetch and merge default reviewers unless explicitly disabled
-        if (includeDefaultReviewers !== false) {
-          try {
-            // Get repo IDs for the default-reviewers endpoint
-            const [sourceRepoData, targetRepoData] = await Promise.all([
-              clients.api
-                .get(`projects/${srcProject}/repos/${srcRepo}`)
-                .json<{ id: number }>(),
-              srcProject === resolvedProject && srcRepo === repository
-                ? Promise.resolve(null)
-                : clients.api
-                    .get(`projects/${resolvedProject}/repos/${repository}`)
-                    .json<{ id: number }>(),
-            ]);
+        const allReviewers =
+          includeDefaultReviewers !== false
+            ? await mergeDefaultReviewers({
+                clients,
+                resolvedProject,
+                repository,
+                srcProject,
+                srcRepo,
+                sourceBranch,
+                targetBranch,
+                existingReviewers: explicitReviewers,
+              })
+            : explicitReviewers;
 
-            const sourceRepoId = sourceRepoData.id;
-            const targetRepoId = targetRepoData
-              ? targetRepoData.id
-              : sourceRepoData.id;
-
-            const defaultReviewersList = await clients.defaultReviewers
-              .get(
-                `projects/${resolvedProject}/repos/${repository}/reviewers`,
-                {
-                  searchParams: {
-                    sourceRepoId,
-                    targetRepoId,
-                    sourceRefId: `refs/heads/${sourceBranch}`,
-                    targetRefId: `refs/heads/${targetBranch}`,
-                  },
-                },
-              )
-              .json<Reviewer[]>();
-
-            if (Array.isArray(defaultReviewersList)) {
-              const existingNames = new Set(
-                allReviewers.map((r) => r.user.name),
-              );
-              for (const reviewer of defaultReviewersList) {
-                if (!existingNames.has(reviewer.name)) {
-                  allReviewers.push({ user: { name: reviewer.name } });
-                  existingNames.add(reviewer.name);
-                }
-              }
-            }
-          } catch {
-            // Proceed without default reviewers on error
-          }
-        }
-
-        const body: Record<string, unknown> = {
+        const body: CreatePrBody = {
           title,
           description,
           fromRef: {
@@ -230,12 +204,12 @@ export function registerPullRequestTools(ctx: ToolContext) {
     },
     async ({ project, repository, prId, fields }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const data = await clients.api
           .get(
             `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}`,
           )
-          .json<Record<string, unknown>>();
+          .json<PullRequest>();
 
         return formatResponse(
           curateResponse(data, fields ?? DEFAULT_PR_FIELDS),
@@ -279,7 +253,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
       reviewers,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
 
         // Fetch current PR state
         const current = await clients.api
@@ -356,7 +330,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
     },
     async ({ project, repository, prId, message, strategy }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
 
         // Fetch current version for optimistic locking
         const pr = await clients.api
@@ -365,7 +339,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
           )
           .json<PullRequest>();
 
-        const body: Record<string, unknown> = { version: pr.version };
+        const body: MergePrBody = { version: pr.version };
         if (message) body.message = message;
 
         const searchParams: Record<string, string> = {};
@@ -408,7 +382,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
     },
     async ({ project, repository, prId, message }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
 
         // Fetch current version for optimistic locking
         const pr = await clients.api
@@ -417,7 +391,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
           )
           .json<PullRequest>();
 
-        const body: Record<string, unknown> = { version: pr.version };
+        const body: DeclinePrBody = { version: pr.version };
         if (message) body.message = message;
 
         const data = await clients.api
@@ -488,7 +462,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
       fields,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const searchParams: Record<string, string | number | boolean> = {
           limit,
           start,
@@ -663,7 +637,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
       start = 0,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const data = await clients.api
           .get(
             `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/activities`,
@@ -750,7 +724,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
       maxLinesPerFile,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const basePath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}`;
 
         if (stat) {
@@ -798,17 +772,13 @@ export function registerPullRequestTools(ctx: ToolContext) {
           .text();
 
         const effectiveMaxLines =
-          maxLinesPerFile !== undefined
-            ? maxLinesPerFile
-            : defaultMaxLinesPerFile;
+          maxLinesPerFile !== undefined ? maxLinesPerFile : ctx.maxLinesPerFile;
 
         const diffContent = effectiveMaxLines
           ? truncateDiff(rawDiff, effectiveMaxLines)
           : rawDiff;
 
-        return {
-          content: [{ type: "text" as const, text: diffContent }],
-        };
+        return formatResponse(diffContent);
       } catch (error) {
         return handleToolError(error);
       }

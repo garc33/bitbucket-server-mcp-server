@@ -10,6 +10,7 @@ import { registerReviewTools } from "../../tools/reviews.js";
 import { registerSearchTools } from "../../tools/search.js";
 import { registerInsightTools } from "../../tools/insights.js";
 import { createMockClients } from "../test-utils.js";
+import { ToolContext } from "../../tools/shared.js";
 import { ApiCache } from "../../http/cache.js";
 
 describe("Tool annotations", () => {
@@ -22,13 +23,13 @@ describe("Tool annotations", () => {
     const mockClients = createMockClients();
     const cache = new ApiCache({ defaultTtlMs: 100 });
 
-    const ctx = {
+    const ctx = new ToolContext({
       server,
       clients: mockClients,
       cache,
       defaultProject: "DEFAULT",
       maxLinesPerFile: 500,
-    };
+    });
     registerRepositoryTools(ctx);
     registerBranchTools(ctx);
     registerPullRequestTools(ctx);

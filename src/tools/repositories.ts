@@ -9,11 +9,10 @@ import {
   DEFAULT_PROJECT_FIELDS,
   DEFAULT_REPOSITORY_FIELDS,
 } from "../response/curate.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 
 export function registerRepositoryTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
   server.registerTool(
     "list_projects",
     {
@@ -91,7 +90,7 @@ export function registerRepositoryTools(ctx: ToolContext) {
     },
     async ({ project, limit = 25, start = 0, fields }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const data = await clients.api
           .get(`projects/${resolvedProject}/repos`, {
             searchParams: { limit, start },
@@ -144,7 +143,7 @@ export function registerRepositoryTools(ctx: ToolContext) {
     },
     async ({ project, repository, path, branch, limit = 50 }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const endpoint = path
           ? `projects/${resolvedProject}/repos/${repository}/browse/${path}`
           : `projects/${resolvedProject}/repos/${repository}/browse`;
@@ -196,7 +195,7 @@ export function registerRepositoryTools(ctx: ToolContext) {
       start = 0,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const searchParams: Record<string, string | number> = { limit, start };
         if (branch) searchParams.at = branch;
 
@@ -236,7 +235,7 @@ export function registerRepositoryTools(ctx: ToolContext) {
     },
     async ({ project, repository, filePath }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
 
         const fileBuffer = await readFile(filePath);
         const fileName = basename(filePath);

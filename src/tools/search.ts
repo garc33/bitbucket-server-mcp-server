@@ -2,11 +2,10 @@ import { z } from "zod";
 import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 
 export function registerSearchTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
   server.registerTool(
     "search",
     {
@@ -48,7 +47,7 @@ export function registerSearchTools(ctx: ToolContext) {
         let effectiveQuery = query;
 
         if (repository) {
-          const resolvedProject = resolveProject(project, defaultProject);
+          const resolvedProject = ctx.resolveProject(project);
           effectiveQuery = `repo:${resolvedProject}/${repository} ${effectiveQuery}`;
         } else if (project) {
           effectiveQuery = `project:${project} ${effectiveQuery}`;

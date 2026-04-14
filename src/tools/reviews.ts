@@ -2,7 +2,6 @@ import { z } from "zod";
 import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
-import { resolveProject } from "./shared.js";
 import type { ToolContext } from "./shared.js";
 import type { ApiClients } from "../http/client.js";
 
@@ -46,7 +45,7 @@ const reviewActions: Record<
 };
 
 export function registerReviewTools(ctx: ToolContext) {
-  const { server, clients, defaultProject } = ctx;
+  const { server, clients } = ctx;
 
   server.registerTool(
     "submit_review",
@@ -86,7 +85,7 @@ export function registerReviewTools(ctx: ToolContext) {
       participantStatus,
     }) => {
       try {
-        const resolvedProject = resolveProject(project, defaultProject);
+        const resolvedProject = ctx.resolveProject(project);
         const prPath = `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}`;
         const handler = reviewActions[action];
         return await handler({

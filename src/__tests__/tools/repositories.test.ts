@@ -9,6 +9,7 @@ import {
   createMockClients,
   mockJson,
 } from "../test-utils.js";
+import { ToolContext } from "../../tools/shared.js";
 import { ApiCache } from "../../http/cache.js";
 
 describe("Repository tools", () => {
@@ -23,12 +24,14 @@ describe("Repository tools", () => {
     mockClients = createMockClients();
     cache = new ApiCache({ defaultTtlMs: 100 });
 
-    registerRepositoryTools({
-      server,
-      clients: mockClients,
-      cache,
-      defaultProject: "DEFAULT",
-    });
+    registerRepositoryTools(
+      new ToolContext({
+        server,
+        clients: mockClients,
+        cache,
+        defaultProject: "DEFAULT",
+      }),
+    );
 
     const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
     serverTransport = sTransport;
