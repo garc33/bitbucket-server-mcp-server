@@ -51,6 +51,11 @@ interface PullRequest {
 
 interface Activity {
   action: string;
+  user?: { name: string; [key: string]: unknown };
+  comment?: {
+    author?: { name: string; [key: string]: unknown };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -644,6 +649,12 @@ export function registerPullRequestTools(
           .enum(["all", "reviews", "comments"])
           .optional()
           .describe("Filter activity type (default: all)."),
+        excludeUsers: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Usernames to exclude from results (e.g. bot accounts like sa_sec_appsec_auto).",
+          ),
         limit: z
           .number()
           .optional()
@@ -660,6 +671,7 @@ export function registerPullRequestTools(
       repository,
       prId,
       filter = "all",
+      excludeUsers,
       limit = 25,
       start = 0,
     }) => {
@@ -673,6 +685,14 @@ export function registerPullRequestTools(
           .json<{ values: Activity[]; isLastPage: boolean; size: number }>();
 
         let activities = data.values;
+
+        if (excludeUsers?.length) {
+          const excluded = new Set(excludeUsers.map((u) => u.toLowerCase()));
+          activities = activities.filter((a) => {
+            const user = a.user?.name ?? a.comment?.author?.name ?? "";
+            return !excluded.has(user.toLowerCase());
+          });
+        }
 
         if (filter === "reviews") {
           activities = activities.filter(

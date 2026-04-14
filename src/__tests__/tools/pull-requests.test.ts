@@ -687,6 +687,43 @@ describe("Pull request tools", () => {
         ),
       ).toBe(true);
     });
+
+    test("should exclude activities from specified users", async () => {
+      mockJson(mockClients.api.get, {
+        values: [
+          {
+            action: "COMMENTED",
+            user: { name: "sa_sec_appsec_auto" },
+            comment: { author: { name: "sa_sec_appsec_auto" } },
+          },
+          {
+            action: "COMMENTED",
+            user: { name: "alice" },
+            comment: { author: { name: "alice" } },
+          },
+          { action: "APPROVED", user: { name: "jenkins-bot" } },
+          { action: "APPROVED", user: { name: "bob" } },
+        ],
+        size: 4,
+        isLastPage: true,
+      });
+
+      const result = await client.callTool({
+        name: "get_pr_activity",
+        arguments: {
+          project: "PROJ",
+          repository: "my-repo",
+          prId: 1,
+          excludeUsers: ["sa_sec_appsec_auto", "jenkins-bot"],
+        },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.activities).toHaveLength(2);
+      expect(parsed.activities[0].user.name).toBe("alice");
+      expect(parsed.activities[1].user.name).toBe("bob");
+    });
   });
 
   // ── get_diff ───────────────────────────────────────────────────────
