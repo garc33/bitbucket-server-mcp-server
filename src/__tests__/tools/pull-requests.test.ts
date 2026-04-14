@@ -597,13 +597,15 @@ describe("Pull request tools", () => {
   // ── get_pr_activity ────────────────────────────────────────────────
 
   describe("get_pr_activity", () => {
-    test("should return all activities by default", async () => {
+    test("should return all activities with pagination info", async () => {
       const mockActivities = {
         values: [
           { action: "APPROVED", user: { name: "alice" } },
           { action: "COMMENTED", comment: { text: "Looks good" } },
           { action: "RESCOPED" },
         ],
+        size: 3,
+        isLastPage: true,
       };
 
       mockJson(mockClients.api.get, mockActivities);
@@ -615,7 +617,8 @@ describe("Pull request tools", () => {
 
       const content = result.content as Array<{ type: string; text: string }>;
       const parsed = JSON.parse(content[0].text);
-      expect(parsed).toHaveLength(3);
+      expect(parsed.activities).toHaveLength(3);
+      expect(parsed.isLastPage).toBe(true);
     });
 
     test("should filter to reviews only", async () => {
@@ -625,6 +628,8 @@ describe("Pull request tools", () => {
           { action: "COMMENTED", comment: { text: "Looks good" } },
           { action: "REVIEWED", user: { name: "bob" } },
         ],
+        size: 3,
+        isLastPage: true,
       };
 
       mockJson(mockClients.api.get, mockActivities);
@@ -641,9 +646,9 @@ describe("Pull request tools", () => {
 
       const content = result.content as Array<{ type: string; text: string }>;
       const parsed = JSON.parse(content[0].text);
-      expect(parsed).toHaveLength(2);
+      expect(parsed.activities).toHaveLength(2);
       expect(
-        parsed.every(
+        parsed.activities.every(
           (a: { action: string }) =>
             a.action === "APPROVED" || a.action === "REVIEWED",
         ),
@@ -657,6 +662,8 @@ describe("Pull request tools", () => {
           { action: "COMMENTED", comment: { text: "Looks good" } },
           { action: "COMMENTED", comment: { text: "One more thing" } },
         ],
+        size: 3,
+        isLastPage: true,
       };
 
       mockJson(mockClients.api.get, mockActivities);
@@ -673,9 +680,11 @@ describe("Pull request tools", () => {
 
       const content = result.content as Array<{ type: string; text: string }>;
       const parsed = JSON.parse(content[0].text);
-      expect(parsed).toHaveLength(2);
+      expect(parsed.activities).toHaveLength(2);
       expect(
-        parsed.every((a: { action: string }) => a.action === "COMMENTED"),
+        parsed.activities.every(
+          (a: { action: string }) => a.action === "COMMENTED",
+        ),
       ).toBe(true);
     });
   });

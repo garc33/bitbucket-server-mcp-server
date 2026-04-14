@@ -644,17 +644,33 @@ export function registerPullRequestTools(
           .enum(["all", "reviews", "comments"])
           .optional()
           .describe("Filter activity type (default: all)."),
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of activities to return (default: 25)."),
+        start: z
+          .number()
+          .optional()
+          .describe("Start index for pagination (default: 0)."),
       },
       annotations: toolAnnotations(),
     },
-    async ({ project, repository, prId, filter = "all" }) => {
+    async ({
+      project,
+      repository,
+      prId,
+      filter = "all",
+      limit = 25,
+      start = 0,
+    }) => {
       try {
         const resolvedProject = resolveProject(project, defaultProject);
         const data = await clients.api
           .get(
             `projects/${resolvedProject}/repos/${repository}/pull-requests/${prId}/activities`,
+            { searchParams: { limit, start } },
           )
-          .json<{ values: Activity[] }>();
+          .json<{ values: Activity[]; isLastPage: boolean; size: number }>();
 
         let activities = data.values;
 
@@ -666,7 +682,11 @@ export function registerPullRequestTools(
           activities = activities.filter((a) => a.action === "COMMENTED");
         }
 
-        return formatResponse(activities);
+        return formatResponse({
+          activities,
+          size: data.size,
+          isLastPage: data.isLastPage,
+        });
       } catch (error) {
         return handleToolError(error);
       }
@@ -692,6 +712,12 @@ export function registerPullRequestTools(
           .describe(
             "If true, return only the list of changed files and types (ADD, MODIFY, DELETE, RENAME, COPY) instead of the full diff. Line count summary included when available (Bitbucket DC 9.1+).",
           ),
+        filePath: z
+          .string()
+          .optional()
+          .describe(
+            "Path to a specific file to get the diff for. Use with stat=true first to discover file paths, then request individual diffs.",
+          ),
         contextLines: z
           .number()
           .optional()
@@ -712,6 +738,7 @@ export function registerPullRequestTools(
       repository,
       prId,
       stat,
+      filePath,
       contextLines = 10,
       maxLinesPerFile,
     }) => {
@@ -753,8 +780,11 @@ export function registerPullRequestTools(
           });
         }
 
+        const diffUrl = filePath
+          ? `${basePath}/diff/${filePath}`
+          : `${basePath}/diff`;
         const rawDiff = await clients.api
-          .get(`${basePath}/diff`, {
+          .get(diffUrl, {
             searchParams: { contextLines, withComments: false },
             headers: { Accept: "text/plain" },
           })
