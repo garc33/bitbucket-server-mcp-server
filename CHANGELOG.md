@@ -1,3 +1,16 @@
+# [0.4.0](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.3.0...v0.4.0) (2026-04-14)
+
+
+### Bug Fixes
+
+* add pagination to get_pr_activity and file-level diff support ([512c265](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/512c265e31210d62555ad6c9f552dffaceed402e))
+
+
+### Features
+
+* add comment reactions and emoticon search ([bd22333](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/bd22333fa7758a1aa3ab5053334286ee3fb1356a))
+* add excludeUsers filter to get_pr_activity ([b27b7d9](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/b27b7d9e5a955237da9b5d1f7f20f53239384b7d))
+
 # [0.3.0](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.2.1...v0.3.0) (2026-04-14)
 
 
