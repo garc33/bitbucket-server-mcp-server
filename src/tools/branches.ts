@@ -9,17 +9,12 @@ import {
   DEFAULT_COMMIT_FIELDS,
 } from "../response/curate.js";
 import type { ToolContext } from "./shared.js";
+import type { Commit as BaseCommit } from "../generated/types.js";
 
-interface CommitAuthor {
-  name?: string;
-  slug?: string;
-  displayName?: string;
-}
-
-interface Commit {
-  author?: CommitAuthor;
-  [key: string]: unknown;
-}
+// Extend: the API returns slug/displayName on author but the spec doesn't document them
+type Commit = BaseCommit & {
+  author?: { name?: string; slug?: string; displayName?: string };
+};
 
 export function registerBranchTools(ctx: ToolContext) {
   const { server, clients } = ctx;

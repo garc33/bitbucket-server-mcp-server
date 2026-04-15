@@ -491,7 +491,7 @@ describe("Pull request tools", () => {
       expect(mockClients.api.post).toHaveBeenCalledWith(
         "projects/PROJ/repos/my-repo/pull-requests/7/decline",
         expect.objectContaining({
-          json: { version: 4, message: "Not needed" },
+          json: { version: 4, comment: "Not needed" },
         }),
       );
     });

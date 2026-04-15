@@ -3,11 +3,7 @@ import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
 import type { ToolContext } from "./shared.js";
-
-interface Report {
-  key: string;
-  [key: string]: unknown;
-}
+import type { InsightReport } from "../generated/types.js";
 
 export function registerInsightTools(ctx: ToolContext) {
   const { server, clients } = ctx;
@@ -35,13 +31,14 @@ export function registerInsightTools(ctx: ToolContext) {
           .get(`${basePath}/reports`, {
             searchParams: {},
           })
-          .json<{ values: Report[] }>();
+          .json<{ values: InsightReport[] }>();
 
         const reports = reportsData.values;
 
         const annotations: Record<string, unknown[]> = {};
 
         for (const report of reports) {
+          if (!report.key) continue;
           try {
             const annotationsData = await clients.insights
               .get(`${basePath}/reports/${report.key}/annotations`, {

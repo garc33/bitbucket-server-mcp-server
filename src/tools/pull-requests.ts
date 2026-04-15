@@ -10,20 +10,22 @@ import {
 } from "../response/curate.js";
 import { mergeDefaultReviewers } from "./shared.js";
 import type { ToolContext } from "./shared.js";
+import type {
+  PullRequest as BasePullRequest,
+  PullRequestActivity,
+  PullRequestMergeRequest,
+  PullRequestDeclineRequest,
+} from "../generated/types.js";
 
-interface PrAuthor {
-  user?: { name?: string; slug?: string; displayName?: string };
-}
-
-interface PullRequest {
-  id: number;
+// Extend generated types with fields we know are present in API responses
+// Extend: the API returns these fields but the 8.5 spec marks them optional or missing
+type PullRequest = BasePullRequest & {
   version: number;
-  title: string;
-  description?: string;
-  state: string;
+  author?: { user?: { name?: string; slug?: string; displayName?: string } };
   fromRef: {
     id: string;
     displayId: string;
+    latestCommit: string;
     repository: { slug: string; project: { key: string } };
   };
   toRef: {
@@ -31,17 +33,15 @@ interface PullRequest {
     displayId: string;
     repository: { slug: string; project: { key: string } };
   };
-  reviewers: Array<{ user: { name: string }; status?: string }>;
-  author?: PrAuthor;
-  [key: string]: unknown;
-}
+};
 
-interface Activity {
-  action: string;
-  user?: { name: string; displayName?: string; slug?: string };
+type Activity = PullRequestActivity & {
   comment?: { author?: { name: string } };
-}
+};
 
+// Create PR accepts RestPullRequest as body, but the API only needs a subset.
+// The spec's type requires fields (project.name, project.type) that aren't
+// needed for creation, so we keep a manual type for what we actually send.
 interface CreatePrBody {
   title: string;
   description?: string;
@@ -54,16 +54,6 @@ interface CreatePrBody {
     repository: { slug: string; project: { key: string } };
   };
   reviewers: Array<{ user: { name: string } }>;
-}
-
-interface MergePrBody {
-  version: number;
-  message?: string;
-}
-
-interface DeclinePrBody {
-  version: number;
-  message?: string;
 }
 
 export function registerPullRequestTools(ctx: ToolContext) {
@@ -339,7 +329,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
           )
           .json<PullRequest>();
 
-        const body: MergePrBody = { version: pr.version };
+        const body: PullRequestMergeRequest = { version: pr.version };
         if (message) body.message = message;
 
         const searchParams: Record<string, string> = {};
@@ -391,8 +381,10 @@ export function registerPullRequestTools(ctx: ToolContext) {
           )
           .json<PullRequest>();
 
-        const body: DeclinePrBody = { version: pr.version };
-        if (message) body.message = message;
+        const body: PullRequestDeclineRequest = {
+          version: pr.version,
+          ...(message && { comment: message }),
+        };
 
         const data = await clients.api
           .post(
@@ -479,7 +471,7 @@ export function registerPullRequestTools(ctx: ToolContext) {
             { searchParams },
           )
           .json<{
-            values: Array<{ author?: PrAuthor; [key: string]: unknown }>;
+            values: PullRequest[];
             size: number;
             isLastPage: boolean;
           }>();
