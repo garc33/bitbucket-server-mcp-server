@@ -58,8 +58,13 @@ export function registerSearchTools(ctx: ToolContext) {
         }
 
         const data = await clients.search
-          .get("search", {
-            searchParams: { query: effectiveQuery, limit, start },
+          .post("search", {
+            json: {
+              query: effectiveQuery,
+              entities: {
+                code: { start, limit },
+              },
+            },
           })
           .json();
 
