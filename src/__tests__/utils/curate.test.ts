@@ -179,10 +179,9 @@ describe("curateResponse", () => {
     const result = curateResponse(fullPr, DEFAULT_PR_FIELDS);
 
     expect(Array.isArray(result.reviewers)).toBe(true);
-    if (Array.isArray(result.reviewers)) {
-      expect(result.reviewers[0].user?.name).toBeDefined();
-      expect(result.reviewers[0].status).toBeDefined();
-    }
+    const reviewers = result.reviewers as Record<string, unknown>[];
+    expect((reviewers[0].user as Record<string, unknown>)?.name).toBeDefined();
+    expect(reviewers[0].status).toBeDefined();
   });
 });
 

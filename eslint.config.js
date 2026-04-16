@@ -20,6 +20,14 @@ export default tseslint.config(
     },
   },
   {
+    // SonarJS does not recognize test.prop() from @fast-check/vitest as test functions.
+    // Upstream fix: https://github.com/SonarSource/SonarJS/pull/6849
+    files: ["src/__tests__/property/**"],
+    rules: {
+      "sonarjs/no-empty-test-file": "off",
+    },
+  },
+  {
     ignores: ["build/**", "node_modules/**", "src/generated/bitbucket-api.d.ts"],
   },
 );

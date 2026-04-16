@@ -20,9 +20,11 @@ dist/
 .env.local
 .env.*.local
 
-# Coverage
+# Coverage and reports
 coverage/
 .coverage/
+reports/
+.stryker-tmp/
 
 # System files
 .DS_Store
