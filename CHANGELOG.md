@@ -1,3 +1,11 @@
+## [0.6.1](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.0...v0.6.1) (2026-04-16)
+
+
+### Bug Fixes
+
+* curate search response with curateList ([ae8d101](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/ae8d101547a84ce127bd699c885403a8a02eb3f8))
+* use POST method for search API ([8749c7c](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/8749c7cbb9716f71fbe31a8551ad9a99b730a800))
+
 # [0.6.0](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.5.0...v0.6.0) (2026-04-15)
 
 
