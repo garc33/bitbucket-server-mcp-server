@@ -6,7 +6,10 @@
 [![npm downloads](https://img.shields.io/npm/dm/@pavel-kalmykov/bitbucket-server-mcp)](https://www.npmjs.com/package/@pavel-kalmykov/bitbucket-server-mcp)
 [![CI](https://github.com/pavel-kalmykov/bitbucket-server-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pavel-kalmykov/bitbucket-server-mcp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/pavel-kalmykov/bitbucket-server-mcp-server/graph/badge.svg)](https://codecov.io/gh/pavel-kalmykov/bitbucket-server-mcp-server)
+[![CodeQL](https://github.com/pavel-kalmykov/bitbucket-server-mcp/actions/workflows/codeql.yml/badge.svg)](https://github.com/pavel-kalmykov/bitbucket-server-mcp/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pavel-kalmykov/bitbucket-server-mcp/badge)](https://scorecard.dev/viewer/?uri=github.com/pavel-kalmykov/bitbucket-server-mcp)
 [![Node](https://img.shields.io/node/v/@pavel-kalmykov/bitbucket-server-mcp)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/npm/l/@pavel-kalmykov/bitbucket-server-mcp)](LICENSE)
 [![Bitbucket Server](https://img.shields.io/badge/Bitbucket_Server_%2F_DC-8.5%2B-0052CC?logo=bitbucket)](https://www.atlassian.com/software/bitbucket/enterprise)
 
