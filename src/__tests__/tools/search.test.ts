@@ -55,9 +55,11 @@ describe("Search tools", () => {
   describe("search", () => {
     test("should search with a plain query", async () => {
       const mockResponse = {
-        values: [{ file: { path: "src/index.ts" }, hitCount: 3 }],
-        size: 1,
-        isLastPage: true,
+        code: {
+          values: [{ file: "src/index.ts", hitCount: 3 }],
+          isLastPage: true,
+          count: 1,
+        },
       };
 
       mockJson(mockClients.search.post, mockResponse);
@@ -71,7 +73,7 @@ describe("Search tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.values).toHaveLength(1);
-      expect(parsed.values[0].file.path).toBe("src/index.ts");
+      expect(parsed.values[0].file).toBe("src/index.ts");
 
       expect(mockClients.search.post).toHaveBeenCalledWith("search", {
         json: { query: "createClient", entities: { code: { start: 0, limit: 25 } } },
@@ -80,9 +82,7 @@ describe("Search tools", () => {
 
     test("should prepend project filter when project is provided", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -97,9 +97,7 @@ describe("Search tools", () => {
 
     test("should prepend repo filter when repository is provided", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -117,9 +115,7 @@ describe("Search tools", () => {
 
     test("should use default project for repo filter when project is not provided", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -137,9 +133,7 @@ describe("Search tools", () => {
 
     test("should wrap query in quotes when type is file", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -154,9 +148,7 @@ describe("Search tools", () => {
 
     test("should apply both repo filter and file type together", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -179,9 +171,7 @@ describe("Search tools", () => {
 
     test("should pass custom limit and start", async () => {
       mockJson(mockClients.search.post, {
-        values: [],
-        size: 0,
-        isLastPage: true,
+        code: { values: [], isLastPage: true },
       });
 
       await client.callTool({
@@ -192,6 +182,75 @@ describe("Search tools", () => {
       expect(mockClients.search.post).toHaveBeenCalledWith("search", {
         json: { query: "test", entities: { code: { start: 10, limit: 50 } } },
       });
+    });
+
+    test("should curate response fields by default", async () => {
+      mockJson(mockClients.search.post, {
+        code: {
+          values: [
+            {
+              file: "src/index.ts",
+              hitCount: 2,
+              hitContexts: [[{ line: 1, text: "const x = 1;" }]],
+              pathMatches: [{ text: "src/index.ts", match: false }],
+              repository: {
+                slug: "my-repo",
+                name: "My Repo",
+                scmId: "git",
+                hierarchyId: "h2",
+                project: { key: "PROJ", id: 1 },
+              },
+            },
+          ],
+          isLastPage: true,
+        },
+      });
+
+      const result = await client.callTool({
+        name: "search",
+        arguments: { query: "const" },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      const item = parsed.values[0];
+
+      expect(item.file).toBe("src/index.ts");
+      expect(item.hitContexts).toBeDefined();
+      expect(item.repository.slug).toBe("my-repo");
+      expect(item.repository.scmId).toBeUndefined();
+      expect(item.repository.hierarchyId).toBeUndefined();
+      expect(item.repository.project.key).toBe("PROJ");
+      expect(item.repository.project.id).toBeUndefined();
+    });
+
+    test("should return all fields when fields='*all'", async () => {
+      mockJson(mockClients.search.post, {
+        code: {
+          values: [
+            {
+              file: "src/index.ts",
+              hitCount: 1,
+              hitContexts: [],
+              pathMatches: [],
+              repository: { slug: "my-repo", hierarchyId: "h2", scmId: "git" },
+            },
+          ],
+          isLastPage: true,
+        },
+      });
+
+      const result = await client.callTool({
+        name: "search",
+        arguments: { query: "const", fields: "*all" },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      const item = parsed.values[0];
+
+      expect(item.repository.hierarchyId).toBe("h2");
+      expect(item.repository.scmId).toBe("git");
     });
 
     test("should handle errors", async () => {

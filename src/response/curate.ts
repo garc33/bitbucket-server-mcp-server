@@ -17,6 +17,10 @@ export const DEFAULT_REPOSITORY_FIELDS =
 export const DEFAULT_BRANCH_FIELDS =
   "id,displayId,type,latestCommit,isDefault,metadata";
 
+export const DEFAULT_SEARCH_FIELDS =
+  "file,hitCount,hitContexts,pathMatches," +
+  "repository.slug,repository.name,repository.project.key";
+
 export const DEFAULT_COMMIT_FIELDS =
   "id,displayId,message,author.name,author.emailAddress,authorTimestamp,parents.id";
 

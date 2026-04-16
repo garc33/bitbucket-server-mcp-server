@@ -2,6 +2,7 @@ import { z } from "zod";
 import { formatResponse } from "../response/format.js";
 import { toolAnnotations } from "../response/annotations.js";
 import { handleToolError } from "../http/errors.js";
+import { curateList, DEFAULT_SEARCH_FIELDS } from "../response/curate.js";
 import type { ToolContext } from "./shared.js";
 
 export function registerSearchTools(ctx: ToolContext) {
@@ -39,10 +40,16 @@ export function registerSearchTools(ctx: ToolContext) {
           .number()
           .optional()
           .describe("Start index for pagination (default: 0)."),
+        fields: z
+          .string()
+          .optional()
+          .describe(
+            "Comma-separated fields to return. Defaults to: file, hitCount, hitContexts, pathMatches, repository (slug, name, project.key). Use '*all' for the full API response.",
+          ),
       },
       annotations: toolAnnotations({ openWorldHint: true }),
     },
-    async ({ query, project, repository, type, limit = 25, start = 0 }) => {
+    async ({ query, project, repository, type, limit = 25, start = 0, fields }) => {
       try {
         let effectiveQuery = query;
 
@@ -66,9 +73,21 @@ export function registerSearchTools(ctx: ToolContext) {
               },
             },
           })
-          .json();
+          .json<{
+            code: {
+              values: Record<string, unknown>[];
+              isLastPage: boolean;
+              count?: number;
+              nextStart?: number;
+            };
+          }>();
 
-        return formatResponse(data);
+        return formatResponse({
+          values: curateList(data.code.values, fields ?? DEFAULT_SEARCH_FIELDS),
+          isLastPage: data.code.isLastPage,
+          count: data.code.count,
+          nextStart: data.code.nextStart,
+        });
       } catch (error) {
         return handleToolError(error);
       }
