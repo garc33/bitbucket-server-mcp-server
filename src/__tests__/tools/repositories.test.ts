@@ -9,6 +9,7 @@ import { registerRepositoryTools } from "../../tools/repositories.js";
 import {
   type MockApiClients,
   createMockClients,
+  fakeResponse,
   mockJson,
 } from "../test-utils.js";
 import { ToolContext } from "../../tools/shared.js";
@@ -180,6 +181,74 @@ describe("Repository tools", () => {
       const content = result.content as Array<{ type: string; text: string }>;
       expect(content[0].type).toBe("text");
     });
+
+    test("should browse a specific path", async () => {
+      mockJson(mockClients.api.get, {
+        children: {
+          values: [{ path: { toString: "index.ts" }, type: "FILE" }],
+          size: 1,
+        },
+      });
+
+      await client.callTool({
+        name: "browse_repository",
+        arguments: { project: "TEST", repository: "my-repo", path: "src" },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/TEST/repos/my-repo/browse/src",
+        expect.anything(),
+      );
+    });
+
+    test("should pass branch as 'at' search param", async () => {
+      mockJson(mockClients.api.get, {
+        children: { values: [], size: 0 },
+      });
+
+      await client.callTool({
+        name: "browse_repository",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          branch: "develop",
+        },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/TEST/repos/my-repo/browse",
+        expect.objectContaining({
+          searchParams: expect.objectContaining({ at: "develop" }),
+        }),
+      );
+    });
+
+    test("should use default project when not provided", async () => {
+      mockJson(mockClients.api.get, { children: { values: [], size: 0 } });
+
+      await client.callTool({
+        name: "browse_repository",
+        arguments: { repository: "my-repo" },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/DEFAULT/repos/my-repo/browse",
+        expect.anything(),
+      );
+    });
+
+    test("should handle errors gracefully", async () => {
+      mockClients.api.get.mockReturnValue(
+        fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
+      );
+
+      const result = await client.callTool({
+        name: "browse_repository",
+        arguments: { project: "TEST", repository: "nonexistent" },
+      });
+
+      expect(result.isError).toBe(true);
+    });
   });
 
   describe("upload_attachment", () => {
@@ -286,6 +355,204 @@ describe("Repository tools", () => {
 
       const content = result.content as Array<{ type: string; text: string }>;
       expect(content[0].type).toBe("text");
+    });
+
+    test("should pass branch as 'at' search param", async () => {
+      mockJson(mockClients.api.get, {
+        lines: [{ text: "content" }],
+        size: 1,
+        isLastPage: true,
+      });
+
+      await client.callTool({
+        name: "get_file_content",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          filePath: "src/index.ts",
+          branch: "feature-branch",
+        },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/TEST/repos/my-repo/browse/src/index.ts",
+        expect.objectContaining({
+          searchParams: expect.objectContaining({ at: "feature-branch" }),
+        }),
+      );
+    });
+
+    test("should pass limit and start for pagination", async () => {
+      mockJson(mockClients.api.get, {
+        lines: [{ text: "line 50" }],
+        size: 1,
+        isLastPage: false,
+      });
+
+      await client.callTool({
+        name: "get_file_content",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          filePath: "big-file.ts",
+          limit: 50,
+          start: 100,
+        },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/TEST/repos/my-repo/browse/big-file.ts",
+        expect.objectContaining({
+          searchParams: expect.objectContaining({ limit: 50, start: 100 }),
+        }),
+      );
+    });
+
+    test("should use default project when not provided", async () => {
+      mockJson(mockClients.api.get, { lines: [], size: 0, isLastPage: true });
+
+      await client.callTool({
+        name: "get_file_content",
+        arguments: { repository: "my-repo", filePath: "README.md" },
+      });
+
+      expect(mockClients.api.get).toHaveBeenCalledWith(
+        "projects/DEFAULT/repos/my-repo/browse/README.md",
+        expect.anything(),
+      );
+    });
+
+    test("should handle errors gracefully", async () => {
+      mockClients.api.get.mockReturnValue(
+        fakeResponse({
+          json: () => Promise.reject(new Error("File not found")),
+        }),
+      );
+
+      const result = await client.callTool({
+        name: "get_file_content",
+        arguments: {
+          project: "TEST",
+          repository: "my-repo",
+          filePath: "missing.ts",
+        },
+      });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("get_server_info", () => {
+    test("should return server properties", async () => {
+      mockJson(mockClients.api.get, {
+        version: "8.19.1",
+        buildNumber: "8190100",
+        displayName: "Bitbucket",
+      });
+
+      const result = await client.callTool({
+        name: "get_server_info",
+        arguments: {},
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.version).toBe("8.19.1");
+      expect(parsed.displayName).toBe("Bitbucket");
+    });
+
+    test("should handle errors gracefully", async () => {
+      mockClients.api.get.mockReturnValue(
+        fakeResponse({
+          json: () => Promise.reject(new Error("Connection refused")),
+        }),
+      );
+
+      const result = await client.callTool({
+        name: "get_server_info",
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("list_projects", () => {
+    test("should pass fields='*all' to bypass curation", async () => {
+      const mockResponse = {
+        values: [
+          {
+            key: "PROJ",
+            name: "Project",
+            links: { self: [{ href: "https://example.com" }] },
+            extra: "data",
+          },
+        ],
+        size: 1,
+        isLastPage: true,
+      };
+
+      mockJson(mockClients.api.get, mockResponse);
+
+      const result = await client.callTool({
+        name: "list_projects",
+        arguments: { fields: "*all" },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.projects[0]).toHaveProperty("links");
+      expect(parsed.projects[0]).toHaveProperty("extra");
+    });
+
+    test("should handle errors gracefully", async () => {
+      mockClients.api.get.mockReturnValue(
+        fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
+      );
+
+      const result = await client.callTool({
+        name: "list_projects",
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("list_repositories", () => {
+    test("should pass fields='*all' to bypass curation", async () => {
+      const mockResponse = {
+        values: [
+          { slug: "repo", name: "Repo", links: { clone: [] }, extra: "data" },
+        ],
+        size: 1,
+        isLastPage: true,
+      };
+
+      mockJson(mockClients.api.get, mockResponse);
+
+      const result = await client.callTool({
+        name: "list_repositories",
+        arguments: { project: "TEST", fields: "*all" },
+      });
+
+      const content = result.content as Array<{ type: string; text: string }>;
+      const parsed = JSON.parse(content[0].text);
+      expect(parsed.repositories[0]).toHaveProperty("links");
+      expect(parsed.repositories[0]).toHaveProperty("extra");
+    });
+
+    test("should handle errors gracefully", async () => {
+      mockClients.api.get.mockReturnValue(
+        fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
+      );
+
+      const result = await client.callTool({
+        name: "list_repositories",
+        arguments: { project: "NONEXISTENT" },
+      });
+
+      expect(result.isError).toBe(true);
     });
   });
 });
