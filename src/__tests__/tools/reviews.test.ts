@@ -78,6 +78,7 @@ describe("Review tools", () => {
       expect(parsed.approved).toBe(true);
       expect(mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/approve",
+        { json: {} },
       );
     });
 

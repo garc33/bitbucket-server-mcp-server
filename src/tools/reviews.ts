@@ -23,7 +23,9 @@ const reviewActions: Record<
   (ctx: ReviewActionContext) => Promise<ReturnType<typeof formatResponse>>
 > = {
   approve: async ({ clients, prPath }) => {
-    const data = await clients.api.post(`${prPath}/approve`).json();
+    const data = await clients.api
+      .post(`${prPath}/approve`, { json: {} })
+      .json();
     return formatResponse(data);
   },
 
