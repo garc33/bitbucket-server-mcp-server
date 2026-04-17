@@ -169,16 +169,7 @@ describe("readOnly + enabledTools combined (decision table)", () => {
       enabledTools: ["create_pull_request", "merge_pull_request"],
     })();
     try {
-      let toolNames: string[] | undefined;
-      try {
-        const { tools } = await conn.client.listTools();
-        toolNames = tools.map((t) => t.name);
-      } catch {
-        // If the server advertises no tools capability, listTools() rejects
-        // with "Method not found". That's a legitimate way to express "no
-        // tools", so we treat it as equivalent to an empty list.
-        toolNames = [];
-      }
+      const toolNames = await listToolsOrEmpty(conn.client);
       expect(toolNames).toEqual([]);
     } finally {
       await conn.client.close();
@@ -186,3 +177,26 @@ describe("readOnly + enabledTools combined (decision table)", () => {
     }
   });
 });
+
+/**
+ * Call listTools, mapping the "tools capability not advertised" rejection to
+ * an empty list. Any other error (transport failure, type error, etc.) is
+ * rethrown so the test fails loudly instead of silently reporting "no tools".
+ */
+async function listToolsOrEmpty(
+  client: import("@modelcontextprotocol/sdk/client/index.js").Client,
+): Promise<string[]> {
+  try {
+    const { tools } = await client.listTools();
+    return tools.map((t) => t.name);
+  } catch (err) {
+    let message = "";
+    if (err instanceof Error) message = err.message;
+    else if (typeof err === "string") message = err;
+    const code = (err as { code?: number }).code;
+    if (code === -32601 || /method not found/i.test(message)) {
+      return [];
+    }
+    throw err;
+  }
+}

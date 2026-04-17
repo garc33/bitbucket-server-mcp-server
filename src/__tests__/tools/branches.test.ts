@@ -298,10 +298,17 @@ describe("Branch tools", () => {
   });
 
   describe("list_branches (filterText + pagination params forwarding)", () => {
+    const searchParamsOfBranchesCall = () => {
+      const callArgs = h.mockClients.api.get.mock.calls.find((c) =>
+        String(c[0]).endsWith("/branches"),
+      );
+      return (callArgs?.[1] as { searchParams: Record<string, unknown> })
+        .searchParams;
+    };
+
     test.each([
       { filterText: "feature", limit: 10, start: 0 },
       { filterText: "fix", limit: 25, start: 50 },
-      { filterText: undefined, limit: 1000, start: 0 },
     ])(
       "passes filterText=$filterText, limit=$limit, start=$start",
       async ({ filterText, limit, start }) => {
@@ -312,19 +319,26 @@ describe("Branch tools", () => {
           arguments: { repository: "r", filterText, limit, start },
         });
 
-        const callArgs = h.mockClients.api.get.mock.calls.find((c) =>
-          String(c[0]).endsWith("/branches"),
-        );
-        const searchParams = (
-          callArgs?.[1] as { searchParams: Record<string, unknown> }
-        ).searchParams;
+        const searchParams = searchParamsOfBranchesCall();
         expect(searchParams.limit).toBe(limit);
         expect(searchParams.start).toBe(start);
-        if (filterText !== undefined) {
-          expect(searchParams.filterText).toBe(filterText);
-        }
+        expect(searchParams.filterText).toBe(filterText);
       },
     );
+
+    test("omits filterText from searchParams when not provided", async () => {
+      mockJson(h.mockClients.api.get, { values: [], isLastPage: true });
+
+      await h.client.callTool({
+        name: "list_branches",
+        arguments: { repository: "r", limit: 1000, start: 0 },
+      });
+
+      const searchParams = searchParamsOfBranchesCall();
+      expect(searchParams.limit).toBe(1000);
+      expect(searchParams.start).toBe(0);
+      expect(searchParams).not.toHaveProperty("filterText");
+    });
   });
 
   describe("list_commits author filter (equivalence: case + partial match)", () => {

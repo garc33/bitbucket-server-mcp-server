@@ -1,14 +1,33 @@
-import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { ApiCache } from "../../http/cache.js";
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("ApiCache", () => {
   let cache: ApiCache;
+  let now: number;
+  let perfSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    // lru-cache captures `performance.now` at module load for TTL bookkeeping
+    // and debounces it with a `setTimeout(..., ttlResolution)` that zeros out
+    // its internal `cachedNow`. Faking both together keeps the debounce in
+    // lock-step with our synthetic clock. We seed `now` with a non-zero value
+    // because lru-cache short-circuits staleness when `starts[index]` is 0
+    // (stored from the first `performance.now()` call at set time).
+    now = 1_000;
+    perfSpy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    vi.useFakeTimers({ shouldAdvanceTime: false });
     cache = new ApiCache({ maxEntries: 10, defaultTtlMs: 100 });
   });
+
+  afterEach(() => {
+    perfSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  const advance = (ms: number) => {
+    now += ms;
+    vi.advanceTimersByTime(ms);
+  };
 
   test("should return undefined for missing keys", () => {
     expect(cache.get("nonexistent")).toBeUndefined();
@@ -19,19 +38,19 @@ describe("ApiCache", () => {
     expect(cache.get("key1")).toEqual({ data: "hello" });
   });
 
-  test("should respect custom TTL", async () => {
+  test("should respect custom TTL", () => {
     cache.set("key1", "value", 50);
     expect(cache.get("key1")).toBe("value");
 
-    await delay(80);
+    advance(51);
     expect(cache.get("key1")).toBeUndefined();
   });
 
-  test("should respect default TTL", async () => {
+  test("should respect default TTL", () => {
     cache.set("key1", "value");
     expect(cache.get("key1")).toBe("value");
 
-    await delay(150);
+    advance(101);
     expect(cache.get("key1")).toBeUndefined();
   });
 

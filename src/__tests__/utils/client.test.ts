@@ -59,7 +59,12 @@ describe("createApiClients", () => {
         .get("projects")
         .json()
         .catch(() => undefined);
-      const authHeader = captured[0]?.headers.authorization ?? null;
+      // Ensure the request actually hit MSW. Without this, a ky-level failure
+      // before send (bad config, URL resolution) would leave `captured` empty
+      // and `authorization ?? null` would pass the `expectedHeader: null`
+      // rows for the wrong reason.
+      expect(captured).toHaveLength(1);
+      const authHeader = captured[0].headers.authorization ?? null;
       expect(authHeader).toBe(expectedHeader);
     });
   });

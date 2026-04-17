@@ -58,16 +58,11 @@ describe("parseConfig", () => {
       process.env.BITBUCKET_URL = "https://git.example.com";
     });
 
-    test.each<{
-      name: string;
-      env: Record<string, string | undefined>;
-      shouldThrow: boolean;
-    }>([
-      { name: "token only", env: { BITBUCKET_TOKEN: "t" }, shouldThrow: false },
+    test.each<{ name: string; env: Record<string, string | undefined> }>([
+      { name: "token only", env: { BITBUCKET_TOKEN: "t" } },
       {
         name: "user + pass",
         env: { BITBUCKET_USERNAME: "u", BITBUCKET_PASSWORD: "p" },
-        shouldThrow: false,
       },
       {
         name: "all three",
@@ -76,26 +71,19 @@ describe("parseConfig", () => {
           BITBUCKET_USERNAME: "u",
           BITBUCKET_PASSWORD: "p",
         },
-        shouldThrow: false,
       },
-      {
-        name: "user only (no pass)",
-        env: { BITBUCKET_USERNAME: "u" },
-        shouldThrow: true,
-      },
-      {
-        name: "pass only (no user)",
-        env: { BITBUCKET_PASSWORD: "p" },
-        shouldThrow: true,
-      },
-      { name: "none", env: {}, shouldThrow: true },
-    ])("$name: throws=$shouldThrow", ({ env, shouldThrow }) => {
+    ])("accepts credentials: $name", ({ env }) => {
       Object.assign(process.env, env);
-      if (shouldThrow) {
-        expect(() => parseConfig()).toThrow(/Authentication/);
-      } else {
-        expect(() => parseConfig()).not.toThrow();
-      }
+      expect(() => parseConfig()).not.toThrow();
+    });
+
+    test.each<{ name: string; env: Record<string, string | undefined> }>([
+      { name: "user only (no pass)", env: { BITBUCKET_USERNAME: "u" } },
+      { name: "pass only (no user)", env: { BITBUCKET_PASSWORD: "p" } },
+      { name: "none", env: {} },
+    ])("rejects incomplete credentials: $name", ({ env }) => {
+      Object.assign(process.env, env);
+      expect(() => parseConfig()).toThrow(/Authentication/);
     });
 
     test("options override env for token", () => {

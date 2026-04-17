@@ -34,7 +34,7 @@ describe("ToolContext", () => {
       name: string;
       provided: string | undefined;
       defaultProject: string | undefined;
-      expected: string | "throws";
+      expected: string;
     }>([
       {
         name: "provided + defaultProject: provided wins",
@@ -55,32 +55,34 @@ describe("ToolContext", () => {
         expected: "DEFAULT",
       },
       {
-        name: "neither: throws",
-        provided: undefined,
-        defaultProject: undefined,
-        expected: "throws",
-      },
-      {
         name: "empty string provided + defaultProject: defaultProject wins",
         provided: "",
         defaultProject: "DEFAULT",
         expected: "DEFAULT",
       },
+    ])("resolves: $name", ({ provided, defaultProject, expected }) => {
+      const ctx = createTestToolContext({ defaultProject });
+      expect(ctx.resolveProject(provided)).toBe(expected);
+    });
+
+    test.each<{
+      name: string;
+      provided: string | undefined;
+      defaultProject: string | undefined;
+    }>([
       {
-        name: "empty string provided + no default: throws",
+        name: "neither provided nor defaultProject",
+        provided: undefined,
+        defaultProject: undefined,
+      },
+      {
+        name: "empty string provided + no default",
         provided: "",
         defaultProject: undefined,
-        expected: "throws",
       },
-    ])("$name", ({ provided, defaultProject, expected }) => {
+    ])("throws: $name", ({ provided, defaultProject }) => {
       const ctx = createTestToolContext({ defaultProject });
-      if (expected === "throws") {
-        expect(() => ctx.resolveProject(provided)).toThrow(
-          /Project is required/,
-        );
-      } else {
-        expect(ctx.resolveProject(provided)).toBe(expected);
-      }
+      expect(() => ctx.resolveProject(provided)).toThrow(/Project is required/);
     });
   });
 

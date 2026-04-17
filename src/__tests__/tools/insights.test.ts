@@ -131,15 +131,19 @@ describe("Insight tools", () => {
     });
 
     test("should skip reports without a key", async () => {
-      mockJson(h.mockClients.insights.get, {
+      const reportsList = {
         values: [
           { key: "sonar", title: "SonarQube", result: "PASS" },
           { title: "No Key Report", result: "PASS" },
         ],
-      });
+      };
 
       h.mockClients.insights.get.mockImplementation((url: Input) => {
-        if (String(url).includes("/reports/sonar/annotations")) {
+        const s = String(url);
+        if (s.endsWith("/reports")) {
+          return fakeResponse({ json: () => Promise.resolve(reportsList) });
+        }
+        if (s.includes("/reports/sonar/annotations")) {
           return fakeResponse({
             json: () => Promise.resolve({ values: [{ message: "Bug" }] }),
           });

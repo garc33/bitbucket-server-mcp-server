@@ -28,13 +28,12 @@ describe("curateResponse (property-based)", () => {
       fc.oneof(fc.string(), fc.integer(), fc.boolean(), fc.constant(null)),
       { minKeys: 1 },
     ),
-  ])("curated result should only contain requested keys", (data) => {
+  ])("curated result should contain exactly the requested keys", (data) => {
     const keys = Object.keys(data);
     const requestedKeys = keys.slice(0, Math.ceil(keys.length / 2));
     const result = curateResponse(data, requestedKeys.join(","));
-    for (const key of Object.keys(result)) {
-      expect(requestedKeys).toContain(key);
-    }
+    // Bidirectional: requested keys must be present, and nothing else.
+    expect(Object.keys(result).sort()).toEqual([...requestedKeys].sort());
   });
 
   test.prop([arbitraryObject])(
@@ -93,13 +92,11 @@ describe("curateResponse (property-based)", () => {
     (reviewers) => {
       const data = { reviewers } as unknown as Record<string, unknown>;
       const result = curateResponse(data, "reviewers.name,reviewers.status");
-      const curated = result.reviewers as Record<string, unknown>[];
-      expect(curated).toHaveLength(reviewers.length);
-      curated.forEach((item, i) => {
-        expect(item).toHaveProperty("name", reviewers[i].name);
-        expect(item).toHaveProperty("status", reviewers[i].status);
-        expect(item).not.toHaveProperty("secret");
-      });
+      // Whole-shape equality: one failure pinpoints the whole diff instead
+      // of reporting an element-by-element assertion buried in a forEach.
+      expect(result.reviewers).toEqual(
+        reviewers.map(({ name, status }) => ({ name, status })),
+      );
     },
   );
 });
