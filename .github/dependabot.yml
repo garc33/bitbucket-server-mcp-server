@@ -12,19 +12,6 @@ updates:
         update-types:
           - minor
 
-  # Release tooling is isolated in .release/ so its transitive npm CLI
-  # bundled deps never surface at the root. We still want direct-dep
-  # updates (semantic-release, plugins) but must ignore transitives,
-  # since advisories inside `npm`'s bundled `node_modules/` cannot be
-  # updated by npm/Dependabot (the fix has to come from npm/cli itself,
-  # e.g. npm/cli#9194 → 11.13.0).
-  - package-ecosystem: npm
-    directory: /.release
-    schedule:
-      interval: weekly
-    allow:
-      - dependency-type: direct
-
   - package-ecosystem: github-actions
     directory: /
     schedule:

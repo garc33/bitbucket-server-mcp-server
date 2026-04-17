@@ -42,17 +42,10 @@ jobs:
 
       - run: npm run build
 
-      # semantic-release lives in its own .release/ package so its bundled
-      # transitive `npm` CLI (whose own vendored deps periodically surface
-      # advisories like brace-expansion and picomatch) never lands in the
-      # root `node_modules` or surfaces in `npm audit` at the repo root.
-      - name: Install release tooling
-        run: npm ci --prefix .release
-
       - name: Release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: .release/node_modules/.bin/semantic-release
+        run: npx semantic-release
 
   docker:
     name: Publish Docker image
