@@ -3,6 +3,27 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../../server.js";
 
+/**
+ * Call listTools, mapping the "tools capability not advertised" rejection to
+ * an empty list. Any other error (transport failure, type error, etc.) is
+ * rethrown so the test fails loudly instead of silently reporting "no tools".
+ */
+async function listToolsOrEmpty(client: Client): Promise<string[]> {
+  try {
+    const { tools } = await client.listTools();
+    return tools.map((t) => t.name);
+  } catch (err) {
+    let message = "";
+    if (err instanceof Error) message = err.message;
+    else if (typeof err === "string") message = err;
+    const code = (err as { code?: number }).code;
+    if (code === -32601 || /method not found/i.test(message)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
 function connectServer(options: Record<string, unknown>) {
   return async () => {
     const { server } = createServer({
@@ -177,26 +198,3 @@ describe("readOnly + enabledTools combined (decision table)", () => {
     }
   });
 });
-
-/**
- * Call listTools, mapping the "tools capability not advertised" rejection to
- * an empty list. Any other error (transport failure, type error, etc.) is
- * rethrown so the test fails loudly instead of silently reporting "no tools".
- */
-async function listToolsOrEmpty(
-  client: import("@modelcontextprotocol/sdk/client/index.js").Client,
-): Promise<string[]> {
-  try {
-    const { tools } = await client.listTools();
-    return tools.map((t) => t.name);
-  } catch (err) {
-    let message = "";
-    if (err instanceof Error) message = err.message;
-    else if (typeof err === "string") message = err;
-    const code = (err as { code?: number }).code;
-    if (code === -32601 || /method not found/i.test(message)) {
-      return [];
-    }
-    throw err;
-  }
-}

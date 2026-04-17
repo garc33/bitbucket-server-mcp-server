@@ -302,7 +302,11 @@ describe("Branch tools", () => {
       const callArgs = h.mockClients.api.get.mock.calls.find((c) =>
         String(c[0]).endsWith("/branches"),
       );
-      return (callArgs?.[1] as { searchParams: Record<string, unknown> })
+      expect(
+        callArgs,
+        "expected a /branches request to have been made",
+      ).toBeDefined();
+      return (callArgs![1] as { searchParams: Record<string, unknown> })
         .searchParams;
     };
 
