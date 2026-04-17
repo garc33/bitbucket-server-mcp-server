@@ -1,3 +1,10 @@
+## [0.6.6](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.5...v0.6.6) (2026-04-17)
+
+
+### Bug Fixes
+
+* **dependabot:** scope .release to direct dependencies only ([163a21c](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/163a21c007b0a0c57c9fdc2074d50dbeabe7a5b4)), closes [#35](https://github.com/pavel-kalmykov/bitbucket-server-mcp/issues/35)
+
 ## [0.6.5](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.4...v0.6.5) (2026-04-17)
 
 ## [0.6.4](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.3...v0.6.4) (2026-04-17)
