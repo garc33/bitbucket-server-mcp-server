@@ -1,3 +1,10 @@
+## [0.6.2](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.1...v0.6.2) (2026-04-17)
+
+
+### Bug Fixes
+
+* send empty json body on approve to make ky set Content-Type ([fcefe5c](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/fcefe5ceae1f13eda6ba65a6352d05b01911d254))
+
 ## [0.6.1](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.0...v0.6.1) (2026-04-16)
 
 
