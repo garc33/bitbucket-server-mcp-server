@@ -1,3 +1,10 @@
+## [0.6.7](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.6...v0.6.7) (2026-04-17)
+
+
+### Reverts
+
+* restore semantic-release in devDependencies ([8c6e172](https://github.com/pavel-kalmykov/bitbucket-server-mcp/commit/8c6e17213383574fcde8e0e4ba8d2348e807033c)), closes [#34](https://github.com/pavel-kalmykov/bitbucket-server-mcp/issues/34) [#35](https://github.com/pavel-kalmykov/bitbucket-server-mcp/issues/35) [npm/cli#9194](https://github.com/npm/cli/issues/9194) [npm/cli#9240](https://github.com/npm/cli/issues/9240)
+
 ## [0.6.6](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.5...v0.6.6) (2026-04-17)
 
 

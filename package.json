@@ -1,6 +1,6 @@
 {
   "name": "@pavel-kalmykov/bitbucket-server-mcp",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "MCP server for Bitbucket Server / Data Center with code review, cross-repo PRs, and CI insights",
   "type": "module",
   "main": "build/entry.js",
