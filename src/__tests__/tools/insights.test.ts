@@ -1,56 +1,13 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { describe, test, expect } from "vitest";
 import type { Input } from "ky";
 import { registerInsightTools } from "../../tools/insights.js";
-import {
-  type MockApiClients,
-  createMockClients,
-  fakeResponse,
-  mockJson,
-} from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
+import { fakeResponse, mockJson } from "../test-utils.js";
+import { setupToolHarness } from "../tool-test-utils.js";
 
 describe("Insight tools", () => {
-  let server: McpServer;
-  let client: Client;
-  let mockClients: MockApiClients;
-  let cache: ApiCache;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeEach(async () => {
-    server = new McpServer({ name: "test", version: "1.0.0" });
-    mockClients = createMockClients();
-    cache = new ApiCache({ defaultTtlMs: 100 });
-
-    registerInsightTools(
-      new ToolContext({
-        server,
-        clients: mockClients,
-        cache,
-        defaultProject: "DEFAULT",
-      }),
-    );
-
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    serverTransport = sTransport;
-
-    client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-
-    await Promise.all([
-      server.connect(sTransport),
-      client.connect(clientTransport),
-    ]);
-  });
-
-  afterEach(async () => {
-    await client.close();
-    await serverTransport.close();
+  const h = setupToolHarness({
+    register: registerInsightTools,
+    defaultProject: "DEFAULT",
   });
 
   describe("get_code_insights", () => {
@@ -84,7 +41,7 @@ describe("Insight tools", () => {
         ],
       };
 
-      mockClients.insights.get.mockImplementation((url: Input) => {
+      h.mockClients.insights.get.mockImplementation((url: Input) => {
         if (String(url).endsWith("/reports")) {
           return fakeResponse({ json: () => Promise.resolve(mockReports) });
         }
@@ -101,7 +58,7 @@ describe("Insight tools", () => {
         return fakeResponse({ json: () => Promise.resolve({ values: [] }) });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_code_insights",
         arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
       });
@@ -121,14 +78,14 @@ describe("Insight tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.insights.get, { values: [] });
+      mockJson(h.mockClients.insights.get, { values: [] });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "get_code_insights",
         arguments: { repository: "my-repo", pullRequestId: 1 },
       });
 
-      expect(mockClients.insights.get).toHaveBeenCalledWith(
+      expect(h.mockClients.insights.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/1/reports",
         expect.anything(),
       );
@@ -139,7 +96,7 @@ describe("Insight tools", () => {
         values: [{ key: "broken-report", title: "Broken", result: "PASS" }],
       };
 
-      mockClients.insights.get.mockImplementation((url: Input) => {
+      h.mockClients.insights.get.mockImplementation((url: Input) => {
         if (String(url).endsWith("/reports")) {
           return fakeResponse({ json: () => Promise.resolve(mockReports) });
         }
@@ -148,7 +105,7 @@ describe("Insight tools", () => {
         });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_code_insights",
         arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
       });
@@ -161,11 +118,11 @@ describe("Insight tools", () => {
     });
 
     test("should handle reports fetch error", async () => {
-      mockClients.insights.get.mockReturnValue(
+      h.mockClients.insights.get.mockReturnValue(
         fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_code_insights",
         arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
       });
@@ -174,14 +131,14 @@ describe("Insight tools", () => {
     });
 
     test("should skip reports without a key", async () => {
-      mockJson(mockClients.insights.get, {
+      mockJson(h.mockClients.insights.get, {
         values: [
           { key: "sonar", title: "SonarQube", result: "PASS" },
           { title: "No Key Report", result: "PASS" },
         ],
       });
 
-      mockClients.insights.get.mockImplementation((url: Input) => {
+      h.mockClients.insights.get.mockImplementation((url: Input) => {
         if (String(url).includes("/reports/sonar/annotations")) {
           return fakeResponse({
             json: () => Promise.resolve({ values: [{ message: "Bug" }] }),
@@ -190,7 +147,7 @@ describe("Insight tools", () => {
         return fakeResponse({ json: () => Promise.resolve({ values: [] }) });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_code_insights",
         arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
       });
@@ -204,9 +161,9 @@ describe("Insight tools", () => {
     });
 
     test("should handle empty reports list", async () => {
-      mockJson(mockClients.insights.get, { values: [] });
+      mockJson(h.mockClients.insights.get, { values: [] });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_code_insights",
         arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
       });
@@ -221,7 +178,7 @@ describe("Insight tools", () => {
 
   describe("get_build_status", () => {
     test("should fetch build status by commit ID", async () => {
-      mockJson(mockClients.buildStatus.get, {
+      mockJson(h.mockClients.buildStatus.get, {
         values: [
           {
             state: "SUCCESSFUL",
@@ -232,7 +189,7 @@ describe("Insight tools", () => {
         ],
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_build_status",
         arguments: { commitId: "abc123def456" },
       });
@@ -243,17 +200,17 @@ describe("Insight tools", () => {
       expect(parsed).toHaveLength(1);
       expect(parsed[0].state).toBe("SUCCESSFUL");
       expect(parsed[0].url).toBe("https://jenkins.example.com/job/123");
-      expect(mockClients.buildStatus.get).toHaveBeenCalledWith(
+      expect(h.mockClients.buildStatus.get).toHaveBeenCalledWith(
         "commits/abc123def456",
       );
     });
 
     test("should resolve latest commit from PR and fetch build status", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         fromRef: { latestCommit: "resolved999" },
       });
 
-      mockJson(mockClients.buildStatus.get, {
+      mockJson(h.mockClients.buildStatus.get, {
         values: [
           {
             state: "FAILED",
@@ -263,7 +220,7 @@ describe("Insight tools", () => {
         ],
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_build_status",
         arguments: { project: "PROJ", repository: "my-repo", prId: 42 },
       });
@@ -272,13 +229,13 @@ describe("Insight tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed[0].state).toBe("FAILED");
-      expect(mockClients.buildStatus.get).toHaveBeenCalledWith(
+      expect(h.mockClients.buildStatus.get).toHaveBeenCalledWith(
         "commits/resolved999",
       );
     });
 
     test("should return error when neither commitId nor prId provided", async () => {
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_build_status",
         arguments: {},
       });
@@ -287,7 +244,7 @@ describe("Insight tools", () => {
     });
 
     test("should return error when prId provided but no repository", async () => {
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_build_status",
         arguments: { prId: 42 },
       });
@@ -298,9 +255,9 @@ describe("Insight tools", () => {
     });
 
     test("should return empty array when commit has no build statuses", async () => {
-      mockJson(mockClients.buildStatus.get, { values: [] });
+      mockJson(h.mockClients.buildStatus.get, { values: [] });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_build_status",
         arguments: { commitId: "abc123" },
       });
@@ -313,11 +270,11 @@ describe("Insight tools", () => {
     test.each(["SUCCESSFUL", "FAILED", "INPROGRESS"])(
       "returns build status %s correctly",
       async (state) => {
-        mockJson(mockClients.buildStatus.get, {
+        mockJson(h.mockClients.buildStatus.get, {
           values: [{ state, name: "build", url: "https://ci.example.com" }],
         });
 
-        const result = await client.callTool({
+        const result = await h.client.callTool({
           name: "get_build_status",
           arguments: { commitId: "abc" },
         });

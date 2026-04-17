@@ -2,57 +2,14 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerRepositoryTools } from "../../tools/repositories.js";
-import {
-  type MockApiClients,
-  createMockClients,
-  fakeResponse,
-  mockJson,
-} from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
+import { fakeResponse, mockJson } from "../test-utils.js";
+import { setupToolHarness } from "../tool-test-utils.js";
 
 describe("Repository tools", () => {
-  let server: McpServer;
-  let client: Client;
-  let mockClients: MockApiClients;
-  let cache: ApiCache;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeEach(async () => {
-    server = new McpServer({ name: "test", version: "1.0.0" });
-    mockClients = createMockClients();
-    cache = new ApiCache({ defaultTtlMs: 100 });
-
-    registerRepositoryTools(
-      new ToolContext({
-        server,
-        clients: mockClients,
-        cache,
-        defaultProject: "DEFAULT",
-      }),
-    );
-
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    serverTransport = sTransport;
-
-    client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-
-    await Promise.all([
-      server.connect(sTransport),
-      client.connect(clientTransport),
-    ]);
-  });
-
-  afterEach(async () => {
-    await client.close();
-    await serverTransport.close();
+  const h = setupToolHarness({
+    register: registerRepositoryTools,
+    defaultProject: "DEFAULT",
   });
 
   describe("list_projects", () => {
@@ -71,9 +28,9 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_projects",
         arguments: { limit: 10 },
       });
@@ -103,9 +60,9 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_projects",
         arguments: {},
       });
@@ -135,9 +92,9 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_repositories",
         arguments: { project: "TEST" },
       });
@@ -150,11 +107,15 @@ describe("Repository tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, { values: [], size: 0, isLastPage: true });
+      mockJson(h.mockClients.api.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
-      await client.callTool({ name: "list_repositories", arguments: {} });
+      await h.client.callTool({ name: "list_repositories", arguments: {} });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos",
         expect.anything(),
       );
@@ -163,7 +124,7 @@ describe("Repository tools", () => {
 
   describe("browse_repository", () => {
     test("should browse root directory", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         children: {
           values: [
             { path: { toString: "src" }, type: "DIRECTORY" },
@@ -173,7 +134,7 @@ describe("Repository tools", () => {
         },
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "browse_repository",
         arguments: { project: "TEST", repository: "my-repo" },
       });
@@ -183,30 +144,30 @@ describe("Repository tools", () => {
     });
 
     test("should browse a specific path", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         children: {
           values: [{ path: { toString: "index.ts" }, type: "FILE" }],
           size: 1,
         },
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "browse_repository",
         arguments: { project: "TEST", repository: "my-repo", path: "src" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/browse/src",
         expect.anything(),
       );
     });
 
     test("should pass branch as 'at' search param", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         children: { values: [], size: 0 },
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "browse_repository",
         arguments: {
           project: "TEST",
@@ -215,7 +176,7 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/browse",
         expect.objectContaining({
           searchParams: expect.objectContaining({ at: "develop" }),
@@ -224,25 +185,25 @@ describe("Repository tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, { children: { values: [], size: 0 } });
+      mockJson(h.mockClients.api.get, { children: { values: [], size: 0 } });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "browse_repository",
         arguments: { repository: "my-repo" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/browse",
         expect.anything(),
       );
     });
 
     test("should handle errors gracefully", async () => {
-      mockClients.api.get.mockReturnValue(
+      h.mockClients.api.get.mockReturnValue(
         fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "browse_repository",
         arguments: { project: "TEST", repository: "nonexistent" },
       });
@@ -280,9 +241,9 @@ describe("Repository tools", () => {
         ],
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "upload_attachment",
         arguments: {
           project: "TEST",
@@ -297,7 +258,7 @@ describe("Repository tools", () => {
 
       expect(parsed.id).toBe(3);
       expect(parsed.markdown).toBe("![screenshot.png](attachment:1/3)");
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/attachments",
         expect.objectContaining({ body: expect.any(FormData) }),
       );
@@ -319,9 +280,9 @@ describe("Repository tools", () => {
         ],
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "upload_attachment",
         arguments: {
           project: "TEST",
@@ -338,13 +299,13 @@ describe("Repository tools", () => {
 
   describe("get_file_content", () => {
     test("should read file content", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         lines: [{ text: "line 1" }, { text: "line 2" }],
         size: 2,
         isLastPage: true,
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_file_content",
         arguments: {
           project: "TEST",
@@ -358,13 +319,13 @@ describe("Repository tools", () => {
     });
 
     test("should pass branch as 'at' search param", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         lines: [{ text: "content" }],
         size: 1,
         isLastPage: true,
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "get_file_content",
         arguments: {
           project: "TEST",
@@ -374,7 +335,7 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/browse/src/index.ts",
         expect.objectContaining({
           searchParams: expect.objectContaining({ at: "feature-branch" }),
@@ -383,13 +344,13 @@ describe("Repository tools", () => {
     });
 
     test("should pass limit and start for pagination", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         lines: [{ text: "line 50" }],
         size: 1,
         isLastPage: false,
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "get_file_content",
         arguments: {
           project: "TEST",
@@ -400,7 +361,7 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/browse/big-file.ts",
         expect.objectContaining({
           searchParams: expect.objectContaining({ limit: 50, start: 100 }),
@@ -409,27 +370,27 @@ describe("Repository tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, { lines: [], size: 0, isLastPage: true });
+      mockJson(h.mockClients.api.get, { lines: [], size: 0, isLastPage: true });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "get_file_content",
         arguments: { repository: "my-repo", filePath: "README.md" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/browse/README.md",
         expect.anything(),
       );
     });
 
     test("should handle errors gracefully", async () => {
-      mockClients.api.get.mockReturnValue(
+      h.mockClients.api.get.mockReturnValue(
         fakeResponse({
           json: () => Promise.reject(new Error("File not found")),
         }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_file_content",
         arguments: {
           project: "TEST",
@@ -444,13 +405,13 @@ describe("Repository tools", () => {
 
   describe("get_server_info", () => {
     test("should return server properties", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         version: "8.19.1",
         buildNumber: "8190100",
         displayName: "Bitbucket",
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_server_info",
         arguments: {},
       });
@@ -462,13 +423,13 @@ describe("Repository tools", () => {
     });
 
     test("should handle errors gracefully", async () => {
-      mockClients.api.get.mockReturnValue(
+      h.mockClients.api.get.mockReturnValue(
         fakeResponse({
           json: () => Promise.reject(new Error("Connection refused")),
         }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "get_server_info",
         arguments: {},
       });
@@ -492,9 +453,9 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_projects",
         arguments: { fields: "*all" },
       });
@@ -506,11 +467,11 @@ describe("Repository tools", () => {
     });
 
     test("should handle errors gracefully", async () => {
-      mockClients.api.get.mockReturnValue(
+      h.mockClients.api.get.mockReturnValue(
         fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_projects",
         arguments: {},
       });
@@ -529,9 +490,9 @@ describe("Repository tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_repositories",
         arguments: { project: "TEST", fields: "*all" },
       });
@@ -550,16 +511,16 @@ describe("Repository tools", () => {
     ])(
       "list_repositories passes limit=$limit start=$start (boundary)",
       async ({ limit, start }) => {
-        mockJson(mockClients.api.get, {
+        mockJson(h.mockClients.api.get, {
           values: [],
           size: 0,
           isLastPage: true,
         });
-        await client.callTool({
+        await h.client.callTool({
           name: "list_repositories",
           arguments: { project: "P", limit, start },
         });
-        expect(mockClients.api.get).toHaveBeenCalledWith(
+        expect(h.mockClients.api.get).toHaveBeenCalledWith(
           "projects/P/repos",
           expect.objectContaining({
             searchParams: expect.objectContaining({ limit, start }),
@@ -576,16 +537,16 @@ describe("Repository tools", () => {
     ])(
       "list_projects passes limit=$limit start=$start (boundary)",
       async ({ limit, start }) => {
-        mockJson(mockClients.api.get, {
+        mockJson(h.mockClients.api.get, {
           values: [],
           size: 0,
           isLastPage: true,
         });
-        await client.callTool({
+        await h.client.callTool({
           name: "list_projects",
           arguments: { limit, start },
         });
-        expect(mockClients.api.get).toHaveBeenCalledWith(
+        expect(h.mockClients.api.get).toHaveBeenCalledWith(
           "projects",
           expect.objectContaining({
             searchParams: expect.objectContaining({ limit, start }),
@@ -595,11 +556,11 @@ describe("Repository tools", () => {
     );
 
     test("should handle errors gracefully", async () => {
-      mockClients.api.get.mockReturnValue(
+      h.mockClients.api.get.mockReturnValue(
         fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
       );
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_repositories",
         arguments: { project: "NONEXISTENT" },
       });

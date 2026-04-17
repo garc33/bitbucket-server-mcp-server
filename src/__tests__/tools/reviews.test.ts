@@ -1,55 +1,12 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { describe, test, expect } from "vitest";
 import { registerReviewTools } from "../../tools/reviews.js";
-import {
-  type MockApiClients,
-  createMockClients,
-  mockJson,
-  mockVoid,
-} from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
+import { mockJson, mockVoid } from "../test-utils.js";
+import { setupToolHarness } from "../tool-test-utils.js";
 
 describe("Review tools", () => {
-  let server: McpServer;
-  let client: Client;
-  let mockClients: MockApiClients;
-  let cache: ApiCache;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeEach(async () => {
-    server = new McpServer({ name: "test", version: "1.0.0" });
-    mockClients = createMockClients();
-    cache = new ApiCache({ defaultTtlMs: 100 });
-
-    registerReviewTools(
-      new ToolContext({
-        server,
-        clients: mockClients,
-        cache,
-        defaultProject: "DEFAULT",
-      }),
-    );
-
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    serverTransport = sTransport;
-
-    client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-
-    await Promise.all([
-      server.connect(sTransport),
-      client.connect(clientTransport),
-    ]);
-  });
-
-  afterEach(async () => {
-    await client.close();
-    await serverTransport.close();
+  const h = setupToolHarness({
+    register: registerReviewTools,
+    defaultProject: "DEFAULT",
   });
 
   describe("submit_review", () => {
@@ -61,9 +18,9 @@ describe("Review tools", () => {
         status: "APPROVED",
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "submit_review",
         arguments: {
           action: "approve",
@@ -76,16 +33,16 @@ describe("Review tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.approved).toBe(true);
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/approve",
         { json: {} },
       );
     });
 
     test("should unapprove a pull request", async () => {
-      mockVoid(mockClients.api.delete);
+      mockVoid(h.mockClients.api.delete);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "submit_review",
         arguments: {
           action: "unapprove",
@@ -99,7 +56,7 @@ describe("Review tools", () => {
 
       expect(parsed.unapproved).toBe(true);
       expect(parsed.prId).toBe(42);
-      expect(mockClients.api.delete).toHaveBeenCalledWith(
+      expect(h.mockClients.api.delete).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/approve",
       );
     });
@@ -111,9 +68,9 @@ describe("Review tools", () => {
         status: "APPROVED",
       };
 
-      mockJson(mockClients.api.put, mockResponse);
+      mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "submit_review",
         arguments: {
           action: "publish",
@@ -128,7 +85,7 @@ describe("Review tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.status).toBe("APPROVED");
-      expect(mockClients.api.put).toHaveBeenCalledWith(
+      expect(h.mockClients.api.put).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/review",
         expect.objectContaining({
           json: expect.objectContaining({
@@ -175,8 +132,8 @@ describe("Review tools", () => {
         expectedBody: { commentText: null },
       },
     ])("$name", async ({ args, expectedBody }) => {
-      mockJson(mockClients.api.put, { status: "APPROVED" });
-      await client.callTool({
+      mockJson(h.mockClients.api.put, { status: "APPROVED" });
+      await h.client.callTool({
         name: "submit_review",
         arguments: {
           action: "publish",
@@ -186,7 +143,7 @@ describe("Review tools", () => {
         },
       });
 
-      expect(mockClients.api.put).toHaveBeenCalledWith(
+      expect(h.mockClients.api.put).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/r/pull-requests/1/review",
         { json: expectedBody },
       );
@@ -195,46 +152,46 @@ describe("Review tools", () => {
 
   describe("submit_review state transitions", () => {
     test("approve -> unapprove calls POST then DELETE on /approve", async () => {
-      mockJson(mockClients.api.post, { approved: true, status: "APPROVED" });
-      mockVoid(mockClients.api.delete);
+      mockJson(h.mockClients.api.post, { approved: true, status: "APPROVED" });
+      mockVoid(h.mockClients.api.delete);
 
-      await client.callTool({
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "approve", repository: "r", prId: 1 },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "unapprove", repository: "r", prId: 1 },
       });
 
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/r/pull-requests/1/approve",
         { json: {} },
       );
-      expect(mockClients.api.delete).toHaveBeenCalledWith(
+      expect(h.mockClients.api.delete).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/r/pull-requests/1/approve",
       );
     });
 
     test("unapprove -> approve -> unapprove sequence uses correct verbs", async () => {
-      mockVoid(mockClients.api.delete);
-      mockJson(mockClients.api.post, { approved: true });
+      mockVoid(h.mockClients.api.delete);
+      mockJson(h.mockClients.api.post, { approved: true });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "unapprove", repository: "r", prId: 1 },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "approve", repository: "r", prId: 1 },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "unapprove", repository: "r", prId: 1 },
       });
 
-      expect(mockClients.api.delete).toHaveBeenCalledTimes(2);
-      expect(mockClients.api.post).toHaveBeenCalledTimes(1);
+      expect(h.mockClients.api.delete).toHaveBeenCalledTimes(2);
+      expect(h.mockClients.api.post).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -243,24 +200,24 @@ describe("Review tools", () => {
       { project: "TEST", repository: "r1", prId: 1 },
       { project: "OTHER", repository: "another-repo", prId: 999 },
     ])("approve on $project/$repository/$prId", async (args) => {
-      mockJson(mockClients.api.post, { approved: true });
-      await client.callTool({
+      mockJson(h.mockClients.api.post, { approved: true });
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "approve", ...args },
       });
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         `projects/${args.project}/repos/${args.repository}/pull-requests/${args.prId}/approve`,
         { json: {} },
       );
     });
 
     test("uses default project when project omitted", async () => {
-      mockJson(mockClients.api.post, { approved: true });
-      await client.callTool({
+      mockJson(h.mockClients.api.post, { approved: true });
+      await h.client.callTool({
         name: "submit_review",
         arguments: { action: "approve", repository: "r", prId: 1 },
       });
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/r/pull-requests/1/approve",
         { json: {} },
       );

@@ -1,56 +1,13 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { describe, test, expect } from "vitest";
 import type { Input } from "ky";
 import { registerBranchTools } from "../../tools/branches.js";
-import {
-  type MockApiClients,
-  createMockClients,
-  fakeResponse,
-  mockJson,
-} from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
+import { fakeResponse, mockJson } from "../test-utils.js";
+import { setupToolHarness } from "../tool-test-utils.js";
 
 describe("Branch tools", () => {
-  let server: McpServer;
-  let client: Client;
-  let mockClients: MockApiClients;
-  let cache: ApiCache;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeEach(async () => {
-    server = new McpServer({ name: "test", version: "1.0.0" });
-    mockClients = createMockClients();
-    cache = new ApiCache({ defaultTtlMs: 100 });
-
-    registerBranchTools(
-      new ToolContext({
-        server,
-        clients: mockClients,
-        cache,
-        defaultProject: "DEFAULT",
-      }),
-    );
-
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    serverTransport = sTransport;
-
-    client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-
-    await Promise.all([
-      server.connect(sTransport),
-      client.connect(clientTransport),
-    ]);
-  });
-
-  afterEach(async () => {
-    await client.close();
-    await serverTransport.close();
+  const h = setupToolHarness({
+    register: registerBranchTools,
+    defaultProject: "DEFAULT",
   });
 
   describe("list_branches", () => {
@@ -68,7 +25,7 @@ describe("Branch tools", () => {
         id: "refs/heads/main",
       };
 
-      mockClients.api.get.mockImplementation((url: Input) => {
+      h.mockClients.api.get.mockImplementation((url: Input) => {
         if (String(url).includes("default-branch")) {
           return fakeResponse({
             json: () => Promise.resolve(defaultBranchResponse),
@@ -77,7 +34,7 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_branches",
         arguments: { project: "TEST", repository: "my-repo" },
       });
@@ -92,7 +49,7 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockClients.api.get.mockImplementation((url: Input) => {
+      h.mockClients.api.get.mockImplementation((url: Input) => {
         if (String(url).includes("default-branch")) {
           return fakeResponse({ json: () => Promise.resolve(null) });
         }
@@ -102,12 +59,12 @@ describe("Branch tools", () => {
         });
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "list_branches",
         arguments: { repository: "my-repo" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/branches",
         expect.anything(),
       );
@@ -135,7 +92,7 @@ describe("Branch tools", () => {
         extraField: "also kept",
       };
 
-      mockClients.api.get.mockImplementation((url: Input) => {
+      h.mockClients.api.get.mockImplementation((url: Input) => {
         if (String(url).includes("default-branch")) {
           return fakeResponse({
             json: () => Promise.resolve(defaultBranchResponse),
@@ -144,7 +101,7 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_branches",
         arguments: { project: "TEST", repository: "my-repo", fields: "*all" },
       });
@@ -163,7 +120,7 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      mockClients.api.get.mockImplementation((url: Input) => {
+      h.mockClients.api.get.mockImplementation((url: Input) => {
         if (String(url).includes("default-branch")) {
           return fakeResponse({
             json: () => Promise.reject(new Error("Not found")),
@@ -172,7 +129,7 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_branches",
         arguments: { project: "TEST", repository: "my-repo" },
       });
@@ -204,9 +161,9 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_commits",
         arguments: { project: "TEST", repository: "my-repo", branch: "main" },
       });
@@ -218,7 +175,7 @@ describe("Branch tools", () => {
       expect(parsed.commits).toHaveLength(2);
       expect(parsed.commits[0].id).toBe("abc123");
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/commits",
         expect.objectContaining({
           searchParams: expect.objectContaining({ until: "main" }),
@@ -244,9 +201,9 @@ describe("Branch tools", () => {
         isLastPage: true,
       };
 
-      mockJson(mockClients.api.get, mockResponse);
+      mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_commits",
         arguments: { project: "TEST", repository: "my-repo", author: "JOHN" },
       });
@@ -260,14 +217,18 @@ describe("Branch tools", () => {
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, { values: [], size: 0, isLastPage: true });
+      mockJson(h.mockClients.api.get, {
+        values: [],
+        size: 0,
+        isLastPage: true,
+      });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "list_commits",
         arguments: { repository: "my-repo" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/commits",
         expect.anything(),
       );
@@ -276,13 +237,13 @@ describe("Branch tools", () => {
 
   describe("delete_branch", () => {
     test("should delete a non-default branch", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         displayId: "main",
         id: "refs/heads/main",
       });
-      mockJson(mockClients.branchUtils.post, {});
+      mockJson(h.mockClients.branchUtils.post, {});
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "delete_branch",
         arguments: {
           project: "TEST",
@@ -297,19 +258,19 @@ describe("Branch tools", () => {
       expect(parsed.deleted).toBe(true);
       expect(parsed.branch).toBe("feature/old");
 
-      expect(mockClients.branchUtils.post).toHaveBeenCalledWith(
+      expect(h.mockClients.branchUtils.post).toHaveBeenCalledWith(
         "projects/TEST/repos/my-repo/branches",
         { json: { name: "refs/heads/feature/old", dryRun: false } },
       );
     });
 
     test("should refuse to delete the default branch", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         displayId: "main",
         id: "refs/heads/main",
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "delete_branch",
         arguments: { project: "TEST", repository: "my-repo", branch: "main" },
       });
@@ -318,22 +279,22 @@ describe("Branch tools", () => {
       expect(content[0].text).toContain("Cannot delete the default branch");
       expect(result.isError).toBe(true);
 
-      expect(mockClients.branchUtils.post).not.toHaveBeenCalled();
+      expect(h.mockClients.branchUtils.post).not.toHaveBeenCalled();
     });
 
     test("should use default project when not provided", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         displayId: "main",
         id: "refs/heads/main",
       });
-      mockJson(mockClients.branchUtils.post, {});
+      mockJson(h.mockClients.branchUtils.post, {});
 
-      await client.callTool({
+      await h.client.callTool({
         name: "delete_branch",
         arguments: { repository: "my-repo", branch: "feature/old" },
       });
 
-      expect(mockClients.api.get).toHaveBeenCalledWith(
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/default-branch",
       );
     });
@@ -347,14 +308,14 @@ describe("Branch tools", () => {
     ])(
       "passes filterText=$filterText, limit=$limit, start=$start",
       async ({ filterText, limit, start }) => {
-        mockJson(mockClients.api.get, { values: [], isLastPage: true });
+        mockJson(h.mockClients.api.get, { values: [], isLastPage: true });
 
-        await client.callTool({
+        await h.client.callTool({
           name: "list_branches",
           arguments: { repository: "r", filterText, limit, start },
         });
 
-        const callArgs = mockClients.api.get.mock.calls.find((c) =>
+        const callArgs = h.mockClients.api.get.mock.calls.find((c) =>
           String(c[0]).endsWith("/branches"),
         );
         const searchParams = (
@@ -385,7 +346,7 @@ describe("Branch tools", () => {
       { filter: "Bob", expected: ["bob"] },
       { filter: "xyz", expected: [] }, // no match
     ])("filter '$filter' returns $expected", async ({ filter, expected }) => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         values: [
           commitWithAuthor("alice"),
           commitWithAuthor("bob"),
@@ -394,7 +355,7 @@ describe("Branch tools", () => {
         isLastPage: true,
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_commits",
         arguments: {
           repository: "r",
@@ -412,12 +373,12 @@ describe("Branch tools", () => {
     });
 
     test("matches on displayName too", async () => {
-      mockJson(mockClients.api.get, {
+      mockJson(h.mockClients.api.get, {
         values: [commitWithAuthor("user1", "Alice Smith")],
         isLastPage: true,
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "list_commits",
         arguments: { repository: "r", author: "smith" },
       });

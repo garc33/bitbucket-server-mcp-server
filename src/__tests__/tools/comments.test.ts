@@ -1,64 +1,21 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { describe, test, expect } from "vitest";
 import { registerCommentTools } from "../../tools/comments.js";
-import {
-  type MockApiClients,
-  createMockClients,
-  mockJson,
-  mockVoid,
-} from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
+import { mockJson, mockVoid } from "../test-utils.js";
+import { setupToolHarness } from "../tool-test-utils.js";
 
 describe("Comment tools", () => {
-  let server: McpServer;
-  let client: Client;
-  let mockClients: MockApiClients;
-  let cache: ApiCache;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeEach(async () => {
-    server = new McpServer({ name: "test", version: "1.0.0" });
-    mockClients = createMockClients();
-    cache = new ApiCache({ defaultTtlMs: 100 });
-
-    registerCommentTools(
-      new ToolContext({
-        server,
-        clients: mockClients,
-        cache,
-        defaultProject: "DEFAULT",
-      }),
-    );
-
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    serverTransport = sTransport;
-
-    client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-
-    await Promise.all([
-      server.connect(sTransport),
-      client.connect(clientTransport),
-    ]);
-  });
-
-  afterEach(async () => {
-    await client.close();
-    await serverTransport.close();
+  const h = setupToolHarness({
+    register: registerCommentTools,
+    defaultProject: "DEFAULT",
   });
 
   describe("manage_comment", () => {
     test("should create a general comment", async () => {
       const mockResponse = { id: 1, text: "Looks good!", version: 0 };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -73,7 +30,7 @@ describe("Comment tools", () => {
 
       expect(parsed.id).toBe(1);
       expect(parsed.text).toBe("Looks good!");
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
         expect.objectContaining({
           json: expect.objectContaining({ text: "Looks good!" }),
@@ -89,9 +46,9 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -106,7 +63,7 @@ describe("Comment tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.state).toBe("PENDING");
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
         expect.objectContaining({
           json: expect.objectContaining({
@@ -125,9 +82,9 @@ describe("Comment tools", () => {
         anchor: { path: "src/main.ts", line: 10, lineType: "ADDED" },
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -144,7 +101,7 @@ describe("Comment tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.anchor.path).toBe("src/main.ts");
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
         expect.objectContaining({
           json: expect.objectContaining({
@@ -174,9 +131,9 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -193,7 +150,7 @@ describe("Comment tools", () => {
 
       expect(result.isError).toBeFalsy();
 
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
         expect.objectContaining({
           json: expect.objectContaining({
@@ -217,9 +174,9 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -232,7 +189,7 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           json: expect.objectContaining({
@@ -253,9 +210,9 @@ describe("Comment tools", () => {
         version: 0,
       };
 
-      mockJson(mockClients.api.post, mockResponse);
+      mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -270,7 +227,7 @@ describe("Comment tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.severity).toBe("BLOCKER");
-      expect(mockClients.api.post).toHaveBeenCalledWith(
+      expect(h.mockClients.api.post).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
         expect.objectContaining({
           json: expect.objectContaining({
@@ -284,9 +241,9 @@ describe("Comment tools", () => {
     test("should edit a comment", async () => {
       const mockResponse = { id: 1, text: "Updated text", version: 1 };
 
-      mockJson(mockClients.api.put, mockResponse);
+      mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -303,7 +260,7 @@ describe("Comment tools", () => {
 
       expect(parsed.text).toBe("Updated text");
       expect(parsed.version).toBe(1);
-      expect(mockClients.api.put).toHaveBeenCalledWith(
+      expect(h.mockClients.api.put).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
         expect.objectContaining({
           json: expect.objectContaining({ text: "Updated text", version: 0 }),
@@ -319,9 +276,9 @@ describe("Comment tools", () => {
         version: 1,
       };
 
-      mockJson(mockClients.api.put, mockResponse);
+      mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -337,7 +294,7 @@ describe("Comment tools", () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.state).toBe("RESOLVED");
-      expect(mockClients.api.put).toHaveBeenCalledWith(
+      expect(h.mockClients.api.put).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
         expect.objectContaining({
           json: expect.objectContaining({ state: "RESOLVED", version: 0 }),
@@ -346,9 +303,9 @@ describe("Comment tools", () => {
     });
 
     test("should delete a comment", async () => {
-      mockVoid(mockClients.api.delete);
+      mockVoid(h.mockClients.api.delete);
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "delete",
@@ -364,7 +321,7 @@ describe("Comment tools", () => {
 
       expect(parsed.deleted).toBe(true);
       expect(parsed.commentId).toBe(1);
-      expect(mockClients.api.delete).toHaveBeenCalledWith(
+      expect(h.mockClients.api.delete).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
         expect.objectContaining({
           searchParams: { version: 0 },
@@ -375,13 +332,13 @@ describe("Comment tools", () => {
 
   describe("manage_comment state transitions", () => {
     test("PENDING -> OPEN via edit with state update", async () => {
-      mockJson(mockClients.api.put, {
+      mockJson(h.mockClients.api.put, {
         id: 1,
         text: "now visible",
         state: "OPEN",
       });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -394,7 +351,7 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.api.put).toHaveBeenCalledWith(
+      expect(h.mockClients.api.put).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/r/pull-requests/1/comments/1",
         expect.objectContaining({
           json: expect.objectContaining({ state: "OPEN" }),
@@ -403,8 +360,8 @@ describe("Comment tools", () => {
     });
 
     test("OPEN -> RESOLVED -> OPEN cycle uses PUT with correct state", async () => {
-      mockJson(mockClients.api.put, { id: 1, state: "RESOLVED" });
-      await client.callTool({
+      mockJson(h.mockClients.api.put, { id: 1, state: "RESOLVED" });
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -415,7 +372,7 @@ describe("Comment tools", () => {
           state: "RESOLVED",
         },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -427,11 +384,11 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.api.put).toHaveBeenCalledTimes(2);
-      const firstCall = mockClients.api.put.mock.calls[0][1] as {
+      expect(h.mockClients.api.put).toHaveBeenCalledTimes(2);
+      const firstCall = h.mockClients.api.put.mock.calls[0][1] as {
         json: Record<string, unknown>;
       };
-      const secondCall = mockClients.api.put.mock.calls[1][1] as {
+      const secondCall = h.mockClients.api.put.mock.calls[1][1] as {
         json: Record<string, unknown>;
       };
       expect(firstCall.json.state).toBe("RESOLVED");
@@ -441,10 +398,10 @@ describe("Comment tools", () => {
     });
 
     test("create-as-PENDING then edit to OPEN", async () => {
-      mockJson(mockClients.api.post, { id: 99, state: "PENDING" });
-      mockJson(mockClients.api.put, { id: 99, state: "OPEN" });
+      mockJson(h.mockClients.api.post, { id: 99, state: "PENDING" });
+      mockJson(h.mockClients.api.put, { id: 99, state: "OPEN" });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "create",
@@ -454,7 +411,7 @@ describe("Comment tools", () => {
           state: "PENDING",
         },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "edit",
@@ -466,16 +423,16 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.api.post).toHaveBeenCalledTimes(1);
-      expect(mockClients.api.put).toHaveBeenCalledTimes(1);
+      expect(h.mockClients.api.post).toHaveBeenCalledTimes(1);
+      expect(h.mockClients.api.put).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("manage_comment react/unreact", () => {
     test("react sends PUT to comment-likes /reactions/{emoticon}", async () => {
-      mockVoid(mockClients.commentLikes.put);
+      mockVoid(h.mockClients.commentLikes.put);
 
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "react",
@@ -486,15 +443,15 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.commentLikes.put).toHaveBeenCalledWith(
+      expect(h.mockClients.commentLikes.put).toHaveBeenCalledWith(
         expect.stringContaining("/comments/5/reactions/thumbsup"),
       );
     });
 
     test("unreact sends DELETE to the same URL", async () => {
-      mockVoid(mockClients.commentLikes.delete);
+      mockVoid(h.mockClients.commentLikes.delete);
 
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: {
           action: "unreact",
@@ -505,14 +462,14 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(mockClients.commentLikes.delete).toHaveBeenCalledWith(
+      expect(h.mockClients.commentLikes.delete).toHaveBeenCalledWith(
         expect.stringContaining("/comments/5/reactions/thumbsup"),
       );
     });
 
     test("react -> unreact -> react sequence alternates PUT/DELETE", async () => {
-      mockVoid(mockClients.commentLikes.put);
-      mockVoid(mockClients.commentLikes.delete);
+      mockVoid(h.mockClients.commentLikes.put);
+      mockVoid(h.mockClients.commentLikes.delete);
 
       const args = {
         repository: "r",
@@ -520,34 +477,34 @@ describe("Comment tools", () => {
         commentId: 5,
         emoticon: "heart",
       };
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: { action: "react", ...args },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: { action: "unreact", ...args },
       });
-      await client.callTool({
+      await h.client.callTool({
         name: "manage_comment",
         arguments: { action: "react", ...args },
       });
 
-      expect(mockClients.commentLikes.put).toHaveBeenCalledTimes(2);
-      expect(mockClients.commentLikes.delete).toHaveBeenCalledTimes(1);
+      expect(h.mockClients.commentLikes.put).toHaveBeenCalledTimes(2);
+      expect(h.mockClients.commentLikes.delete).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("search_emoticons", () => {
     test("returns list of matching emoticon shortcuts", async () => {
-      mockJson(mockClients.emoticons.get, {
+      mockJson(h.mockClients.emoticons.get, {
         values: [
           { shortcut: "thumbsup", displayName: "Thumbs up" },
           { shortcut: "thumbsdown", displayName: "Thumbs down" },
         ],
       });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "search_emoticons",
         arguments: { query: "thumbs" },
       });
@@ -558,14 +515,14 @@ describe("Comment tools", () => {
     });
 
     test("passes query as search param", async () => {
-      mockJson(mockClients.emoticons.get, { values: [] });
+      mockJson(h.mockClients.emoticons.get, { values: [] });
 
-      await client.callTool({
+      await h.client.callTool({
         name: "search_emoticons",
         arguments: { query: "heart" },
       });
 
-      expect(mockClients.emoticons.get).toHaveBeenCalledWith(
+      expect(h.mockClients.emoticons.get).toHaveBeenCalledWith(
         "search",
         expect.objectContaining({
           searchParams: expect.objectContaining({ query: "heart" }),
@@ -574,9 +531,9 @@ describe("Comment tools", () => {
     });
 
     test("returns empty list when no matches", async () => {
-      mockJson(mockClients.emoticons.get, { values: [] });
+      mockJson(h.mockClients.emoticons.get, { values: [] });
 
-      const result = await client.callTool({
+      const result = await h.client.callTool({
         name: "search_emoticons",
         arguments: { query: "xyz" },
       });
