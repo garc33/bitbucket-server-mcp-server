@@ -1,3 +1,5 @@
+## [0.6.4](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.3...v0.6.4) (2026-04-17)
+
 ## [0.6.3](https://github.com/pavel-kalmykov/bitbucket-server-mcp/compare/v0.6.2...v0.6.3) (2026-04-17)
 
 
