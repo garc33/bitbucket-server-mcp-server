@@ -51,20 +51,18 @@ describe("parseConfig (property-based)", () => {
   );
 
   test.prop([
-    fc.array(
-      fc.tuple(
-        fc.stringMatching(/^[A-Za-z][A-Za-z0-9-]+$/),
-        fc.string({ minLength: 1 }),
-      ),
-      { minLength: 1, maxLength: 5 },
+    fc.dictionary(
+      fc.stringMatching(/^[A-Za-z][A-Za-z0-9-]+$/),
+      fc.string({ minLength: 1 }),
+      { minKeys: 1, maxKeys: 5 },
     ),
-  ])("should parse any valid custom headers", (pairs) => {
+  ])("should parse any valid custom headers", (headers) => {
     const config = parseConfig({
       baseUrl: "https://git.example.com",
       token: "tok",
-      customHeaders: Object.fromEntries(pairs),
+      customHeaders: headers,
     });
-    for (const [key, value] of pairs) {
+    for (const [key, value] of Object.entries(headers)) {
       expect(config.customHeaders?.[key]).toBe(value);
     }
   });
