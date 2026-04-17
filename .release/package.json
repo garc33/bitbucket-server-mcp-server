@@ -1,0 +1,11 @@
+{
+  "name": "@pavel-kalmykov/bitbucket-server-mcp-release",
+  "version": "0.0.0-private",
+  "private": true,
+  "description": "Release tooling (semantic-release + plugins). Isolated from the main project so its transitive npm CLI bundled-deps do not surface in `npm audit` at the repo root. Install with `npm ci` (run from .release/) and invoke the binary from .release/node_modules/.bin/.",
+  "dependencies": {
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/git": "10.0.1",
+    "semantic-release": "25.0.3"
+  }
+}

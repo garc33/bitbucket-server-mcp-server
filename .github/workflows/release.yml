@@ -42,18 +42,17 @@ jobs:
 
       - run: npm run build
 
-      # semantic-release and its npm publishing plugin bundle a copy of the
-      # `npm` CLI, whose own bundled deps periodically surface advisories
-      # (e.g. brace-expansion, picomatch). Install them at release time
-      # only, not as devDependencies, so `npm audit` on the main branch
-      # never sees those transitive CLIs.
-      - name: Install semantic-release (ephemeral)
-        run: npm install --no-save --no-package-lock semantic-release@^25 @semantic-release/changelog@^6 @semantic-release/git@^10
+      # semantic-release lives in its own .release/ package so its bundled
+      # transitive `npm` CLI (whose own vendored deps periodically surface
+      # advisories like brace-expansion and picomatch) never lands in the
+      # root `node_modules` or surfaces in `npm audit` at the repo root.
+      - name: Install release tooling
+        run: npm ci --prefix .release
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: npx semantic-release
+        run: .release/node_modules/.bin/semantic-release
 
   docker:
     name: Publish Docker image
