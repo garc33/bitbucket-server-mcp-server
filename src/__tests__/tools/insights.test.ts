@@ -1,8 +1,8 @@
 import { describe, test, expect } from "vitest";
 import type { Input } from "ky";
 import { registerInsightTools } from "../../tools/insights.js";
-import { fakeResponse, mockJson } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import { fakeResponse, mockError, mockJson } from "../test-utils.js";
+import { callAndParse, setupToolHarness } from "../tool-test-utils.js";
 
 describe("Insight tools", () => {
   const h = setupToolHarness({
@@ -58,13 +58,14 @@ describe("Insight tools", () => {
         return fakeResponse({ json: () => Promise.resolve({ values: [] }) });
       });
 
-      const result = await h.client.callTool({
-        name: "get_code_insights",
-        arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
+      const parsed = await callAndParse<{
+        reports: Array<{ key: string }>;
+        annotations: Record<string, Array<{ message: string }>>;
+      }>(h.client, "get_code_insights", {
+        project: "TEST",
+        repository: "my-repo",
+        pullRequestId: 1,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.reports).toHaveLength(2);
       expect(parsed.reports[0].key).toBe("sonar");
@@ -105,22 +106,21 @@ describe("Insight tools", () => {
         });
       });
 
-      const result = await h.client.callTool({
-        name: "get_code_insights",
-        arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
+      const parsed = await callAndParse<{
+        reports: Array<{ key: string }>;
+        annotations: Record<string, unknown[]>;
+      }>(h.client, "get_code_insights", {
+        project: "TEST",
+        repository: "my-repo",
+        pullRequestId: 1,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.reports).toHaveLength(1);
       expect(parsed.annotations["broken-report"]).toEqual([]);
     });
 
     test("should handle reports fetch error", async () => {
-      h.mockClients.insights.get.mockReturnValue(
-        fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
-      );
+      mockError(h.mockClients.insights.get, new Error("Server error"));
 
       const result = await h.client.callTool({
         name: "get_code_insights",
@@ -147,13 +147,14 @@ describe("Insight tools", () => {
         return fakeResponse({ json: () => Promise.resolve({ values: [] }) });
       });
 
-      const result = await h.client.callTool({
-        name: "get_code_insights",
-        arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
+      const parsed = await callAndParse<{
+        reports: unknown[];
+        annotations: Record<string, unknown[]>;
+      }>(h.client, "get_code_insights", {
+        project: "TEST",
+        repository: "my-repo",
+        pullRequestId: 1,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.reports).toHaveLength(2);
       expect(parsed.annotations["sonar"]).toHaveLength(1);
@@ -163,13 +164,14 @@ describe("Insight tools", () => {
     test("should handle empty reports list", async () => {
       mockJson(h.mockClients.insights.get, { values: [] });
 
-      const result = await h.client.callTool({
-        name: "get_code_insights",
-        arguments: { project: "TEST", repository: "my-repo", pullRequestId: 1 },
+      const parsed = await callAndParse<{
+        reports: unknown[];
+        annotations: Record<string, unknown>;
+      }>(h.client, "get_code_insights", {
+        project: "TEST",
+        repository: "my-repo",
+        pullRequestId: 1,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.reports).toHaveLength(0);
       expect(parsed.annotations).toEqual({});
@@ -189,13 +191,11 @@ describe("Insight tools", () => {
         ],
       });
 
-      const result = await h.client.callTool({
-        name: "get_build_status",
-        arguments: { commitId: "abc123def456" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<Array<{ state: string; url: string }>>(
+        h.client,
+        "get_build_status",
+        { commitId: "abc123def456" },
+      );
 
       expect(parsed).toHaveLength(1);
       expect(parsed[0].state).toBe("SUCCESSFUL");
@@ -220,13 +220,11 @@ describe("Insight tools", () => {
         ],
       });
 
-      const result = await h.client.callTool({
-        name: "get_build_status",
-        arguments: { project: "PROJ", repository: "my-repo", prId: 42 },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<Array<{ state: string }>>(
+        h.client,
+        "get_build_status",
+        { project: "PROJ", repository: "my-repo", prId: 42 },
+      );
 
       expect(parsed[0].state).toBe("FAILED");
       expect(h.mockClients.buildStatus.get).toHaveBeenCalledWith(
@@ -257,13 +255,11 @@ describe("Insight tools", () => {
     test("should return empty array when commit has no build statuses", async () => {
       mockJson(h.mockClients.buildStatus.get, { values: [] });
 
-      const result = await h.client.callTool({
-        name: "get_build_status",
-        arguments: { commitId: "abc123" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<unknown[]>(
+        h.client,
+        "get_build_status",
+        { commitId: "abc123" },
+      );
       expect(parsed).toEqual([]);
     });
 
@@ -274,13 +270,11 @@ describe("Insight tools", () => {
           values: [{ state, name: "build", url: "https://ci.example.com" }],
         });
 
-        const result = await h.client.callTool({
-          name: "get_build_status",
-          arguments: { commitId: "abc" },
-        });
-
-        const content = result.content as Array<{ type: string; text: string }>;
-        const parsed = JSON.parse(content[0].text);
+        const parsed = await callAndParse<Array<{ state: string }>>(
+          h.client,
+          "get_build_status",
+          { commitId: "abc" },
+        );
         expect(parsed[0].state).toBe(state);
       },
     );

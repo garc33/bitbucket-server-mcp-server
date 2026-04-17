@@ -3,10 +3,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerSearchTools } from "../../tools/search.js";
-import { createMockClients, fakeResponse, mockJson } from "../test-utils.js";
+import { createMockClients, mockError, mockJson } from "../test-utils.js";
 import { ToolContext } from "../../tools/shared.js";
 import { ApiCache } from "../../http/cache.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import { callAndParse, callRaw, setupToolHarness } from "../tool-test-utils.js";
 
 describe("Search tools", () => {
   const h = setupToolHarness({
@@ -26,13 +26,9 @@ describe("Search tools", () => {
 
       mockJson(h.mockClients.search.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "search",
-        arguments: { query: "createClient" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        values: Array<{ file: string }>;
+      }>(h.client, "search", { query: "createClient" });
 
       expect(parsed.values).toHaveLength(1);
       expect(parsed.values[0].file).toBe("src/index.ts");
@@ -177,13 +173,18 @@ describe("Search tools", () => {
         },
       });
 
-      const result = await h.client.callTool({
-        name: "search",
-        arguments: { query: "const" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        values: Array<{
+          file: string;
+          hitContexts: unknown;
+          repository: {
+            slug: string;
+            scmId?: string;
+            hierarchyId?: string;
+            project: { key: string; id?: number };
+          };
+        }>;
+      }>(h.client, "search", { query: "const" });
       const item = parsed.values[0];
 
       expect(item.file).toBe("src/index.ts");
@@ -211,13 +212,11 @@ describe("Search tools", () => {
         },
       });
 
-      const result = await h.client.callTool({
-        name: "search",
-        arguments: { query: "const", fields: "*all" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        values: Array<{
+          repository: { hierarchyId: string; scmId: string };
+        }>;
+      }>(h.client, "search", { query: "const", fields: "*all" });
       const item = parsed.values[0];
 
       expect(item.repository.hierarchyId).toBe("h2");
@@ -225,17 +224,9 @@ describe("Search tools", () => {
     });
 
     test("should handle errors", async () => {
-      // mockJson can't be used here: the json() call must reject, not resolve
-      h.mockClients.search.post.mockReturnValue(
-        fakeResponse({
-          json: () => Promise.reject(new Error("Network error")),
-        }),
-      );
+      mockError(h.mockClients.search.post, new Error("Network error"));
 
-      const result = await h.client.callTool({
-        name: "search",
-        arguments: { query: "test" },
-      });
+      const result = await callRaw(h.client, "search", { query: "test" });
 
       expect(result.isError).toBe(true);
     });

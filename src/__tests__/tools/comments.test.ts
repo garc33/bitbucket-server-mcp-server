@@ -1,7 +1,12 @@
 import { describe, test, expect } from "vitest";
 import { registerCommentTools } from "../../tools/comments.js";
 import { mockJson, mockVoid } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import {
+  callAndParse,
+  expectCalledWithJson,
+  expectCalledWithSearchParams,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Comment tools", () => {
   const h = setupToolHarness({
@@ -9,33 +14,30 @@ describe("Comment tools", () => {
     defaultProject: "DEFAULT",
   });
 
+  const commentUrl = "projects/DEFAULT/repos/my-repo/pull-requests/42/comments";
+
   describe("manage_comment", () => {
     test("should create a general comment", async () => {
       const mockResponse = { id: 1, text: "Looks good!", version: 0 };
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ id: number; text: string }>(
+        h.client,
+        "manage_comment",
+        {
           action: "create",
           repository: "my-repo",
           prId: "42",
           text: "Looks good!",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.id).toBe(1);
       expect(parsed.text).toBe("Looks good!");
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
-        expect.objectContaining({
-          json: expect.objectContaining({ text: "Looks good!" }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, commentUrl, {
+        text: "Looks good!",
+      });
     });
 
     test("should create a draft comment with state PENDING", async () => {
@@ -48,30 +50,23 @@ describe("Comment tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ state: string }>(
+        h.client,
+        "manage_comment",
+        {
           action: "create",
           repository: "my-repo",
           prId: 42,
           text: "Draft note",
           state: "PENDING",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.state).toBe("PENDING");
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            text: "Draft note",
-            state: "PENDING",
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, commentUrl, {
+        text: "Draft note",
+        state: "PENDING",
+      });
     });
 
     test("should create an inline comment with filePath, line, and lineType", async () => {
@@ -84,9 +79,10 @@ describe("Comment tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ anchor: { path: string } }>(
+        h.client,
+        "manage_comment",
+        {
           action: "create",
           repository: "my-repo",
           prId: 42,
@@ -95,27 +91,19 @@ describe("Comment tools", () => {
           line: 10,
           lineType: "ADDED",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.anchor.path).toBe("src/main.ts");
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            text: "Inline note",
-            anchor: {
-              path: "src/main.ts",
-              lineType: "ADDED",
-              line: 10,
-              diffType: "EFFECTIVE",
-              fileType: "TO",
-            },
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, commentUrl, {
+        text: "Inline note",
+        anchor: {
+          path: "src/main.ts",
+          lineType: "ADDED",
+          line: 10,
+          diffType: "EFFECTIVE",
+          fileType: "TO",
+        },
+      });
     });
 
     test("should create inline comment with custom diffType, fileType, and lineType", async () => {
@@ -150,20 +138,15 @@ describe("Comment tools", () => {
 
       expect(result.isError).toBeFalsy();
 
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            anchor: {
-              path: "old.ts",
-              lineType: "CONTEXT",
-              line: 5,
-              diffType: "COMMIT",
-              fileType: "FROM",
-            },
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, commentUrl, {
+        anchor: {
+          path: "old.ts",
+          lineType: "CONTEXT",
+          line: 5,
+          diffType: "COMMIT",
+          fileType: "FROM",
+        },
+      });
     });
 
     test("should default diffType and fileType when not provided", async () => {
@@ -212,30 +195,23 @@ describe("Comment tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ severity: string }>(
+        h.client,
+        "manage_comment",
+        {
           action: "create",
           repository: "my-repo",
           prId: 42,
           text: "Fix this",
           severity: "BLOCKER",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.severity).toBe("BLOCKER");
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            text: "Fix this",
-            severity: "BLOCKER",
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, commentUrl, {
+        text: "Fix this",
+        severity: "BLOCKER",
+      });
     });
 
     test("should edit a comment", async () => {
@@ -243,9 +219,10 @@ describe("Comment tools", () => {
 
       mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ text: string; version: number }>(
+        h.client,
+        "manage_comment",
+        {
           action: "edit",
           repository: "my-repo",
           prId: 42,
@@ -253,19 +230,14 @@ describe("Comment tools", () => {
           text: "Updated text",
           version: 0,
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.text).toBe("Updated text");
       expect(parsed.version).toBe(1);
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
-        expect.objectContaining({
-          json: expect.objectContaining({ text: "Updated text", version: 0 }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.put, `${commentUrl}/1`, {
+        text: "Updated text",
+        version: 0,
+      });
     });
 
     test("should resolve a comment", async () => {
@@ -278,9 +250,10 @@ describe("Comment tools", () => {
 
       mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
+      const parsed = await callAndParse<{ state: string }>(
+        h.client,
+        "manage_comment",
+        {
           action: "edit",
           repository: "my-repo",
           prId: 42,
@@ -288,45 +261,34 @@ describe("Comment tools", () => {
           version: 0,
           state: "RESOLVED",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.state).toBe("RESOLVED");
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
-        expect.objectContaining({
-          json: expect.objectContaining({ state: "RESOLVED", version: 0 }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.put, `${commentUrl}/1`, {
+        state: "RESOLVED",
+        version: 0,
+      });
     });
 
     test("should delete a comment", async () => {
       mockVoid(h.mockClients.api.delete);
 
-      const result = await h.client.callTool({
-        name: "manage_comment",
-        arguments: {
-          action: "delete",
-          repository: "my-repo",
-          prId: 42,
-          commentId: 1,
-          version: 0,
-        },
+      const parsed = await callAndParse<{
+        deleted: boolean;
+        commentId: number;
+      }>(h.client, "manage_comment", {
+        action: "delete",
+        repository: "my-repo",
+        prId: 42,
+        commentId: 1,
+        version: 0,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.deleted).toBe(true);
       expect(parsed.commentId).toBe(1);
-      expect(h.mockClients.api.delete).toHaveBeenCalledWith(
-        "projects/DEFAULT/repos/my-repo/pull-requests/42/comments/1",
-        expect.objectContaining({
-          searchParams: { version: 0 },
-        }),
-      );
+      expect(h.mockClients.api.delete).toHaveBeenCalledWith(`${commentUrl}/1`, {
+        searchParams: { version: 0 },
+      });
     });
   });
 
@@ -351,11 +313,10 @@ describe("Comment tools", () => {
         },
       });
 
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.put,
         "projects/DEFAULT/repos/r/pull-requests/1/comments/1",
-        expect.objectContaining({
-          json: expect.objectContaining({ state: "OPEN" }),
-        }),
+        { state: "OPEN" },
       );
     });
 
@@ -504,13 +465,13 @@ describe("Comment tools", () => {
         ],
       });
 
-      const result = await h.client.callTool({
-        name: "search_emoticons",
-        arguments: { query: "thumbs" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<string[]>(
+        h.client,
+        "search_emoticons",
+        {
+          query: "thumbs",
+        },
+      );
       expect(parsed).toEqual(["thumbsup", "thumbsdown"]);
     });
 
@@ -522,24 +483,21 @@ describe("Comment tools", () => {
         arguments: { query: "heart" },
       });
 
-      expect(h.mockClients.emoticons.get).toHaveBeenCalledWith(
-        "search",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ query: "heart" }),
-        }),
-      );
+      expectCalledWithSearchParams(h.mockClients.emoticons.get, "search", {
+        query: "heart",
+      });
     });
 
     test("returns empty list when no matches", async () => {
       mockJson(h.mockClients.emoticons.get, { values: [] });
 
-      const result = await h.client.callTool({
-        name: "search_emoticons",
-        arguments: { query: "xyz" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<string[]>(
+        h.client,
+        "search_emoticons",
+        {
+          query: "xyz",
+        },
+      );
       expect(parsed).toEqual([]);
     });
   });

@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterEach, beforeEach } from "vitest";
+import { afterEach, beforeEach, expect } from "vitest";
+import type { MockProxy } from "vitest-mock-extended";
+import type { KyInstance } from "ky";
 import { ToolContext } from "../tools/shared.js";
 import { ApiCache } from "../http/cache.js";
 import { type MockApiClients, createMockClients } from "./test-utils.js";
@@ -97,4 +99,99 @@ export async function callAndParse<T = unknown>(
   const result = await client.callTool({ name, arguments: args });
   const content = result.content as Array<{ type: string; text: string }>;
   return JSON.parse(content[0].text) as T;
+}
+
+/**
+ * Call a tool and return both the raw result and the parsed first text-content
+ * block as JSON. Use this when the test needs to assert on `result.isError` or
+ * inspect the raw text alongside the parsed payload.
+ */
+export async function callAndParseFull<T = unknown>(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{
+  result: Awaited<ReturnType<Client["callTool"]>>;
+  text: string;
+  parsed: T;
+}> {
+  const result = await client.callTool({ name, arguments: args });
+  const content = result.content as Array<{ type: string; text: string }>;
+  const text = content[0].text;
+  return { result, text, parsed: JSON.parse(text) as T };
+}
+
+/**
+ * Call a tool and return the raw result without parsing. Use this when the
+ * test only cares about `result.isError` or the raw text (e.g. error paths).
+ */
+export async function callRaw(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+) {
+  return client.callTool({ name, arguments: args });
+}
+
+/**
+ * Assert that a ky mock was called with the given URL and (optionally) options
+ * matching `expect.objectContaining(opts)`. Shortens the common pattern of
+ * `toHaveBeenCalledWith(url, expect.objectContaining({...}))`.
+ */
+export function expectCalledWith<
+  F extends MockProxy<KyInstance>[keyof KyInstance],
+>(
+  fn: F,
+  url: string | ReturnType<typeof expect.stringContaining>,
+  opts?: Record<string, unknown>,
+): void {
+  if (opts === undefined) {
+    expect(fn).toHaveBeenCalledWith(url);
+  } else {
+    expect(fn).toHaveBeenCalledWith(url, expect.objectContaining(opts));
+  }
+}
+
+/**
+ * Assert that a ky mock was called with a URL and `searchParams` containing
+ * all of `params`. Shortens the very common pattern:
+ *   toHaveBeenCalledWith(url, expect.objectContaining({
+ *     searchParams: expect.objectContaining({...})
+ *   }))
+ */
+export function expectCalledWithSearchParams<
+  F extends MockProxy<KyInstance>[keyof KyInstance],
+>(
+  fn: F,
+  url: string | ReturnType<typeof expect.stringContaining>,
+  params: Record<string, unknown>,
+): void {
+  expect(fn).toHaveBeenCalledWith(
+    url,
+    expect.objectContaining({
+      searchParams: expect.objectContaining(params),
+    }),
+  );
+}
+
+/**
+ * Assert that a ky mock was called with a URL and `json` body containing all
+ * of `body`. Shortens:
+ *   toHaveBeenCalledWith(url, expect.objectContaining({
+ *     json: expect.objectContaining({...})
+ *   }))
+ */
+export function expectCalledWithJson<
+  F extends MockProxy<KyInstance>[keyof KyInstance],
+>(
+  fn: F,
+  url: string | ReturnType<typeof expect.stringContaining>,
+  body: Record<string, unknown>,
+): void {
+  expect(fn).toHaveBeenCalledWith(
+    url,
+    expect.objectContaining({
+      json: expect.objectContaining(body),
+    }),
+  );
 }

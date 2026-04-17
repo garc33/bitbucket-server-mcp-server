@@ -3,8 +3,15 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { registerRepositoryTools } from "../../tools/repositories.js";
-import { fakeResponse, mockJson } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import { mockError, mockJson } from "../test-utils.js";
+import {
+  callAndParse,
+  callAndParseFull,
+  callRaw,
+  expectCalledWith,
+  expectCalledWithSearchParams,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Repository tools", () => {
   const h = setupToolHarness({
@@ -30,12 +37,10 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_projects",
-        arguments: { limit: 10 },
-      });
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        total: number;
+        projects: Array<{ key: string }>;
+      }>(h.client, "list_projects", { limit: 10 });
 
       expect(parsed.total).toBe(1);
       expect(parsed.projects).toHaveLength(1);
@@ -62,12 +67,9 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_projects",
-        arguments: {},
-      });
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        projects: Array<Record<string, unknown>>;
+      }>(h.client, "list_projects", {});
 
       const project = parsed.projects[0];
       expect(project.key).toBe("PROJ");
@@ -94,13 +96,9 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_repositories",
-        arguments: { project: "TEST" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        repositories: Array<{ slug: string }>;
+      }>(h.client, "list_repositories", { project: "TEST" });
 
       expect(parsed.repositories).toHaveLength(1);
       expect(parsed.repositories[0].slug).toBe("my-repo");
@@ -113,7 +111,7 @@ describe("Repository tools", () => {
         isLastPage: true,
       });
 
-      await h.client.callTool({ name: "list_repositories", arguments: {} });
+      await callAndParse(h.client, "list_repositories", {});
 
       expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos",
@@ -176,11 +174,10 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         "projects/TEST/repos/my-repo/browse",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ at: "develop" }),
-        }),
+        { at: "develop" },
       );
     });
 
@@ -199,13 +196,11 @@ describe("Repository tools", () => {
     });
 
     test("should handle errors gracefully", async () => {
-      h.mockClients.api.get.mockReturnValue(
-        fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
-      );
+      mockError(h.mockClients.api.get, new Error("Not Found"));
 
-      const result = await h.client.callTool({
-        name: "browse_repository",
-        arguments: { project: "TEST", repository: "nonexistent" },
+      const result = await callRaw(h.client, "browse_repository", {
+        project: "TEST",
+        repository: "nonexistent",
       });
 
       expect(result.isError).toBe(true);
@@ -243,24 +238,23 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "upload_attachment",
-        arguments: {
-          project: "TEST",
-          repository: "my-repo",
-          filePath: join(tmpDir, "screenshot.png"),
-        },
+      const { result, parsed } = await callAndParseFull<{
+        id: number;
+        markdown: string;
+      }>(h.client, "upload_attachment", {
+        project: "TEST",
+        repository: "my-repo",
+        filePath: join(tmpDir, "screenshot.png"),
       });
 
-      const content = result.content as Array<{ type: string; text: string }>;
       expect(result.isError).toBeFalsy();
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.id).toBe(3);
       expect(parsed.markdown).toBe("![screenshot.png](attachment:1/3)");
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWith(
+        h.mockClients.api.post,
         "projects/TEST/repos/my-repo/attachments",
-        expect.objectContaining({ body: expect.any(FormData) }),
+        { body: expect.any(FormData) },
       );
     });
 
@@ -282,17 +276,15 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "upload_attachment",
-        arguments: {
+      const parsed = await callAndParse<{ markdown: string }>(
+        h.client,
+        "upload_attachment",
+        {
           project: "TEST",
           repository: "my-repo",
           filePath: join(tmpDir, "report.pdf"),
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.markdown).toBe("[report.pdf](attachment:1/5)");
     });
   });
@@ -335,11 +327,10 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         "projects/TEST/repos/my-repo/browse/src/index.ts",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ at: "feature-branch" }),
-        }),
+        { at: "feature-branch" },
       );
     });
 
@@ -361,11 +352,10 @@ describe("Repository tools", () => {
         },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         "projects/TEST/repos/my-repo/browse/big-file.ts",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ limit: 50, start: 100 }),
-        }),
+        { limit: 50, start: 100 },
       );
     });
 
@@ -384,19 +374,12 @@ describe("Repository tools", () => {
     });
 
     test("should handle errors gracefully", async () => {
-      h.mockClients.api.get.mockReturnValue(
-        fakeResponse({
-          json: () => Promise.reject(new Error("File not found")),
-        }),
-      );
+      mockError(h.mockClients.api.get, new Error("File not found"));
 
-      const result = await h.client.callTool({
-        name: "get_file_content",
-        arguments: {
-          project: "TEST",
-          repository: "my-repo",
-          filePath: "missing.ts",
-        },
+      const result = await callRaw(h.client, "get_file_content", {
+        project: "TEST",
+        repository: "my-repo",
+        filePath: "missing.ts",
       });
 
       expect(result.isError).toBe(true);
@@ -411,28 +394,18 @@ describe("Repository tools", () => {
         displayName: "Bitbucket",
       });
 
-      const result = await h.client.callTool({
-        name: "get_server_info",
-        arguments: {},
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        version: string;
+        displayName: string;
+      }>(h.client, "get_server_info", {});
       expect(parsed.version).toBe("8.19.1");
       expect(parsed.displayName).toBe("Bitbucket");
     });
 
     test("should handle errors gracefully", async () => {
-      h.mockClients.api.get.mockReturnValue(
-        fakeResponse({
-          json: () => Promise.reject(new Error("Connection refused")),
-        }),
-      );
+      mockError(h.mockClients.api.get, new Error("Connection refused"));
 
-      const result = await h.client.callTool({
-        name: "get_server_info",
-        arguments: {},
-      });
+      const result = await callRaw(h.client, "get_server_info", {});
 
       expect(result.isError).toBe(true);
     });
@@ -455,26 +428,17 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_projects",
-        arguments: { fields: "*all" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        projects: Array<Record<string, unknown>>;
+      }>(h.client, "list_projects", { fields: "*all" });
       expect(parsed.projects[0]).toHaveProperty("links");
       expect(parsed.projects[0]).toHaveProperty("extra");
     });
 
     test("should handle errors gracefully", async () => {
-      h.mockClients.api.get.mockReturnValue(
-        fakeResponse({ json: () => Promise.reject(new Error("Server error")) }),
-      );
+      mockError(h.mockClients.api.get, new Error("Server error"));
 
-      const result = await h.client.callTool({
-        name: "list_projects",
-        arguments: {},
-      });
+      const result = await callRaw(h.client, "list_projects", {});
 
       expect(result.isError).toBe(true);
     });
@@ -492,13 +456,9 @@ describe("Repository tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_repositories",
-        arguments: { project: "TEST", fields: "*all" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        repositories: Array<Record<string, unknown>>;
+      }>(h.client, "list_repositories", { project: "TEST", fields: "*all" });
       expect(parsed.repositories[0]).toHaveProperty("links");
       expect(parsed.repositories[0]).toHaveProperty("extra");
     });
@@ -520,11 +480,10 @@ describe("Repository tools", () => {
           name: "list_repositories",
           arguments: { project: "P", limit, start },
         });
-        expect(h.mockClients.api.get).toHaveBeenCalledWith(
+        expectCalledWithSearchParams(
+          h.mockClients.api.get,
           "projects/P/repos",
-          expect.objectContaining({
-            searchParams: expect.objectContaining({ limit, start }),
-          }),
+          { limit, start },
         );
       },
     );
@@ -546,23 +505,18 @@ describe("Repository tools", () => {
           name: "list_projects",
           arguments: { limit, start },
         });
-        expect(h.mockClients.api.get).toHaveBeenCalledWith(
-          "projects",
-          expect.objectContaining({
-            searchParams: expect.objectContaining({ limit, start }),
-          }),
-        );
+        expectCalledWithSearchParams(h.mockClients.api.get, "projects", {
+          limit,
+          start,
+        });
       },
     );
 
     test("should handle errors gracefully", async () => {
-      h.mockClients.api.get.mockReturnValue(
-        fakeResponse({ json: () => Promise.reject(new Error("Not Found")) }),
-      );
+      mockError(h.mockClients.api.get, new Error("Not Found"));
 
-      const result = await h.client.callTool({
-        name: "list_repositories",
-        arguments: { project: "NONEXISTENT" },
+      const result = await callRaw(h.client, "list_repositories", {
+        project: "NONEXISTENT",
       });
 
       expect(result.isError).toBe(true);

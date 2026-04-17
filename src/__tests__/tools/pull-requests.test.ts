@@ -1,7 +1,12 @@
 import { describe, test, expect } from "vitest";
 import { registerPullRequestTools } from "../../tools/pull-requests.js";
 import { mockJson, mockText, mockError } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import {
+  callAndParse,
+  expectCalledWithJson,
+  expectCalledWithSearchParams,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Pull request tools", () => {
   const h = setupToolHarness({
@@ -22,9 +27,10 @@ describe("Pull request tools", () => {
       // Mock PR creation
       mockJson(h.mockClients.api.post, mockPr);
 
-      const result = await h.client.callTool({
-        name: "create_pull_request",
-        arguments: {
+      const parsed = await callAndParse<{ id: number; title: string }>(
+        h.client,
+        "create_pull_request",
+        {
           project: "PROJ",
           repository: "my-repo",
           title: "My PR",
@@ -32,30 +38,26 @@ describe("Pull request tools", () => {
           targetBranch: "main",
           reviewers: ["alice"],
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.id).toBe(1);
       expect(parsed.title).toBe("My PR");
 
       // Verify the POST body
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.post,
         "projects/PROJ/repos/my-repo/pull-requests",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            title: "My PR",
-            fromRef: expect.objectContaining({
-              id: "refs/heads/feature/x",
-              repository: { slug: "my-repo", project: { key: "PROJ" } },
-            }),
-            toRef: expect.objectContaining({
-              id: "refs/heads/main",
-              repository: { slug: "my-repo", project: { key: "PROJ" } },
-            }),
-            reviewers: [{ user: { name: "alice" } }],
+        {
+          title: "My PR",
+          fromRef: expect.objectContaining({
+            id: "refs/heads/feature/x",
+            repository: { slug: "my-repo", project: { key: "PROJ" } },
           }),
-        }),
+          toRef: expect.objectContaining({
+            id: "refs/heads/main",
+            repository: { slug: "my-repo", project: { key: "PROJ" } },
+          }),
+          reviewers: [{ user: { name: "alice" } }],
+        },
       );
     });
 
@@ -71,9 +73,10 @@ describe("Pull request tools", () => {
       // Mock PR creation
       mockJson(h.mockClients.api.post, mockPr);
 
-      const result = await h.client.callTool({
-        name: "create_pull_request",
-        arguments: {
+      const parsed = await callAndParse<{ id: number }>(
+        h.client,
+        "create_pull_request",
+        {
           project: "TARGET",
           repository: "target-repo",
           title: "Cross-repo PR",
@@ -83,27 +86,23 @@ describe("Pull request tools", () => {
           sourceRepository: "source-repo",
           reviewers: ["alice"],
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.id).toBe(2);
 
       // Verify fromRef uses source project/repo
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.post,
         "projects/TARGET/repos/target-repo/pull-requests",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            fromRef: expect.objectContaining({
-              repository: { slug: "source-repo", project: { key: "SOURCE" } },
-            }),
-            toRef: expect.objectContaining({
-              repository: { slug: "target-repo", project: { key: "TARGET" } },
-            }),
-            // alice + default reviewer bob
-            reviewers: [{ user: { name: "alice" } }, { user: { name: "bob" } }],
+        {
+          fromRef: expect.objectContaining({
+            repository: { slug: "source-repo", project: { key: "SOURCE" } },
           }),
-        }),
+          toRef: expect.objectContaining({
+            repository: { slug: "target-repo", project: { key: "TARGET" } },
+          }),
+          // alice + default reviewer bob
+          reviewers: [{ user: { name: "alice" } }, { user: { name: "bob" } }],
+        },
       );
     });
 
@@ -117,30 +116,19 @@ describe("Pull request tools", () => {
       ]);
       mockJson(h.mockClients.api.post, mockPr);
 
-      await h.client.callTool({
-        name: "create_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          title: "Dedup PR",
-          sourceBranch: "feature/z",
-          targetBranch: "main",
-          reviewers: ["alice"],
-        },
+      await callAndParse(h.client, "create_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        title: "Dedup PR",
+        sourceBranch: "feature/z",
+        targetBranch: "main",
+        reviewers: ["alice"],
       });
 
       // alice should appear once, carol added from defaults
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          json: expect.objectContaining({
-            reviewers: [
-              { user: { name: "alice" } },
-              { user: { name: "carol" } },
-            ],
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.post, expect.any(String), {
+        reviewers: [{ user: { name: "alice" } }, { user: { name: "carol" } }],
+      });
     });
 
     test("should skip default reviewers when includeDefaultReviewers is false", async () => {
@@ -148,16 +136,13 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.post, mockPr);
 
-      await h.client.callTool({
-        name: "create_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          title: "No defaults",
-          sourceBranch: "feature/a",
-          targetBranch: "main",
-          includeDefaultReviewers: false,
-        },
+      await callAndParse(h.client, "create_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        title: "No defaults",
+        sourceBranch: "feature/a",
+        targetBranch: "main",
+        includeDefaultReviewers: false,
       });
 
       // Should not have called get for repo IDs or default reviewers
@@ -174,13 +159,11 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockPr);
 
-      const result = await h.client.callTool({
-        name: "get_pull_request",
-        arguments: { project: "PROJ", repository: "my-repo", prId: "42" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{ id: number; title: string }>(
+        h.client,
+        "get_pull_request",
+        { project: "PROJ", repository: "my-repo", prId: "42" },
+      );
       expect(parsed.id).toBe(42);
       expect(parsed.title).toBe("Test PR");
 
@@ -192,9 +175,9 @@ describe("Pull request tools", () => {
     test("should use default project", async () => {
       mockJson(h.mockClients.api.get, { id: 1 });
 
-      await h.client.callTool({
-        name: "get_pull_request",
-        arguments: { repository: "my-repo", prId: 1 },
+      await callAndParse(h.client, "get_pull_request", {
+        repository: "my-repo",
+        prId: 1,
       });
 
       expect(h.mockClients.api.get).toHaveBeenCalledWith(
@@ -222,29 +205,26 @@ describe("Pull request tools", () => {
       // PUT updated PR
       mockJson(h.mockClients.api.put, updatedPr);
 
-      const result = await h.client.callTool({
-        name: "update_pull_request",
-        arguments: {
+      const parsed = await callAndParse<{ title: string }>(
+        h.client,
+        "update_pull_request",
+        {
           project: "PROJ",
           repository: "my-repo",
           prId: 10,
           title: "New title",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.title).toBe("New title");
 
       // Verify reviewers were preserved
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.put,
         "projects/PROJ/repos/my-repo/pull-requests/10",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            title: "New title",
-            reviewers: [{ user: { name: "bob" }, status: "APPROVED" }],
-          }),
-        }),
+        {
+          title: "New title",
+          reviewers: [{ user: { name: "bob" }, status: "APPROVED" }],
+        },
       );
     });
 
@@ -264,24 +244,16 @@ describe("Pull request tools", () => {
         reviewers: [{ user: { name: "carol" } }],
       });
 
-      await h.client.callTool({
-        name: "update_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 10,
-          reviewers: ["carol"],
-        },
+      await callAndParse(h.client, "update_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 10,
+        reviewers: ["carol"],
       });
 
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          json: expect.objectContaining({
-            reviewers: [{ user: { name: "carol" } }],
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.put, expect.any(String), {
+        reviewers: [{ user: { name: "carol" } }],
+      });
     });
 
     test("should update target branch preserving repository info for cross-repo PRs", async () => {
@@ -304,31 +276,23 @@ describe("Pull request tools", () => {
         toRef: { ...existingPr.toRef, id: "refs/heads/develop" },
       });
 
-      await h.client.callTool({
-        name: "update_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 10,
-          targetBranch: "develop",
-        },
+      await callAndParse(h.client, "update_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 10,
+        targetBranch: "develop",
       });
 
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          json: expect.objectContaining({
-            toRef: {
-              id: "refs/heads/develop",
-              displayId: "main",
-              repository: {
-                slug: "upstream-repo",
-                project: { key: "UPSTREAM" },
-              },
-            },
-          }),
-        }),
-      );
+      expectCalledWithJson(h.mockClients.api.put, expect.any(String), {
+        toRef: {
+          id: "refs/heads/develop",
+          displayId: "main",
+          repository: {
+            slug: "upstream-repo",
+            project: { key: "UPSTREAM" },
+          },
+        },
+      });
     });
   });
 
@@ -344,19 +308,17 @@ describe("Pull request tools", () => {
       // POST merge
       mockJson(h.mockClients.api.post, mergedPr);
 
-      const result = await h.client.callTool({
-        name: "merge_pull_request",
-        arguments: {
+      const parsed = await callAndParse<{ state: string }>(
+        h.client,
+        "merge_pull_request",
+        {
           project: "PROJ",
           repository: "my-repo",
           prId: 5,
           message: "Merging feature",
           strategy: "squash",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.state).toBe("MERGED");
 
       expect(h.mockClients.api.post).toHaveBeenCalledWith(
@@ -375,14 +337,11 @@ describe("Pull request tools", () => {
       mockJson(h.mockClients.api.get, mockPr);
       mockJson(h.mockClients.api.post, mergedPr);
 
-      await h.client.callTool({
-        name: "merge_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 5,
-          strategy: "no-ff",
-        },
+      await callAndParse(h.client, "merge_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 5,
+        strategy: "no-ff",
       });
 
       expect(h.mockClients.api.post).toHaveBeenCalledWith(
@@ -401,20 +360,16 @@ describe("Pull request tools", () => {
       mockJson(h.mockClients.api.get, mockPr);
       mockJson(h.mockClients.api.post, mergedPr);
 
-      await h.client.callTool({
-        name: "merge_pull_request",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 5,
-        },
+      await callAndParse(h.client, "merge_pull_request", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 5,
       });
 
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.post,
         "projects/PROJ/repos/my-repo/pull-requests/5/merge",
-        expect.objectContaining({
-          json: { version: 12 },
-        }),
+        { version: 12 },
       );
     });
   });
@@ -429,25 +384,22 @@ describe("Pull request tools", () => {
       mockJson(h.mockClients.api.get, mockPr);
       mockJson(h.mockClients.api.post, declinedPr);
 
-      const result = await h.client.callTool({
-        name: "decline_pull_request",
-        arguments: {
+      const parsed = await callAndParse<{ state: string }>(
+        h.client,
+        "decline_pull_request",
+        {
           project: "PROJ",
           repository: "my-repo",
           prId: 7,
           message: "Not needed",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
       expect(parsed.state).toBe("DECLINED");
 
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.post,
         "projects/PROJ/repos/my-repo/pull-requests/7/decline",
-        expect.objectContaining({
-          json: { version: 4, comment: "Not needed" },
-        }),
+        { version: 4, comment: "Not needed" },
       );
     });
   });
@@ -477,13 +429,14 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_pull_requests",
-        arguments: { project: "PROJ", repository: "my-repo", state: "OPEN" },
+      const parsed = await callAndParse<{
+        total: number;
+        pullRequests: unknown[];
+      }>(h.client, "list_pull_requests", {
+        project: "PROJ",
+        repository: "my-repo",
+        state: "OPEN",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.total).toBe(2);
       expect(parsed.pullRequests).toHaveLength(2);
     });
@@ -510,13 +463,14 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_pull_requests",
-        arguments: { project: "PROJ", repository: "my-repo", author: "alice" },
+      const parsed = await callAndParse<{
+        total: number;
+        pullRequests: Array<{ id: number }>;
+      }>(h.client, "list_pull_requests", {
+        project: "PROJ",
+        repository: "my-repo",
+        author: "alice",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.total).toBe(1);
       expect(parsed.pullRequests).toHaveLength(1);
       expect(parsed.pullRequests[0].id).toBe(1);
@@ -535,25 +489,20 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "get_dashboard_pull_requests",
-        arguments: { state: "OPEN", role: "REVIEWER", limit: 10 },
+      const parsed = await callAndParse<{
+        values: Array<{ title: string }>;
+      }>(h.client, "get_dashboard_pull_requests", {
+        state: "OPEN",
+        role: "REVIEWER",
+        limit: 10,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.values).toHaveLength(1);
       expect(parsed.values[0].title).toBe("Dashboard PR");
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         "dashboard/pull-requests",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({
-            state: "OPEN",
-            role: "REVIEWER",
-            limit: 10,
-          }),
-        }),
+        { state: "OPEN", role: "REVIEWER", limit: 10 },
       );
     });
   });
@@ -574,13 +523,14 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockActivities);
 
-      const result = await h.client.callTool({
-        name: "get_pr_activity",
-        arguments: { project: "PROJ", repository: "my-repo", prId: 1 },
+      const parsed = await callAndParse<{
+        activities: unknown[];
+        isLastPage: boolean;
+      }>(h.client, "get_pr_activity", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.activities).toHaveLength(3);
       expect(parsed.isLastPage).toBe(true);
     });
@@ -598,18 +548,14 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockActivities);
 
-      const result = await h.client.callTool({
-        name: "get_pr_activity",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 1,
-          filter: "reviews",
-        },
+      const parsed = await callAndParse<{
+        activities: Array<{ action: string }>;
+      }>(h.client, "get_pr_activity", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
+        filter: "reviews",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.activities).toHaveLength(2);
       expect(
         parsed.activities.every(
@@ -632,18 +578,14 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, mockActivities);
 
-      const result = await h.client.callTool({
-        name: "get_pr_activity",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 1,
-          filter: "comments",
-        },
+      const parsed = await callAndParse<{
+        activities: Array<{ action: string }>;
+      }>(h.client, "get_pr_activity", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
+        filter: "comments",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.activities).toHaveLength(2);
       expect(
         parsed.activities.every(
@@ -672,18 +614,14 @@ describe("Pull request tools", () => {
         isLastPage: true,
       });
 
-      const result = await h.client.callTool({
-        name: "get_pr_activity",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 1,
-          excludeUsers: ["sa_sec_appsec_auto", "jenkins-bot"],
-        },
+      const parsed = await callAndParse<{
+        activities: Array<{ user: { name: string } }>;
+      }>(h.client, "get_pr_activity", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
+        excludeUsers: ["sa_sec_appsec_auto", "jenkins-bot"],
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
       expect(parsed.activities).toHaveLength(2);
       expect(parsed.activities[0].user.name).toBe("alice");
       expect(parsed.activities[1].user.name).toBe("bob");
@@ -780,18 +718,16 @@ describe("Pull request tools", () => {
       // diff-stats-summary returns 404 on older versions
       mockError(h.mockClients.api.get, new Error("Not Found"));
 
-      const result = await h.client.callTool({
-        name: "get_diff",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 1,
-          stat: true,
-        },
+      const parsed = await callAndParse<{
+        totalFiles: number;
+        files: Array<{ path: string; type: string }>;
+        summary?: unknown;
+      }>(h.client, "get_diff", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
+        stat: true,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.totalFiles).toBe(2);
       expect(parsed.files[0]).toEqual({
@@ -815,18 +751,15 @@ describe("Pull request tools", () => {
 
       mockJson(h.mockClients.api.get, { linesAdded: 50, linesRemoved: 10 });
 
-      const result = await h.client.callTool({
-        name: "get_diff",
-        arguments: {
-          project: "PROJ",
-          repository: "my-repo",
-          prId: 1,
-          stat: true,
-        },
+      const parsed = await callAndParse<{
+        totalFiles: number;
+        summary: { linesAdded: number; linesRemoved: number };
+      }>(h.client, "get_diff", {
+        project: "PROJ",
+        repository: "my-repo",
+        prId: 1,
+        stat: true,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.totalFiles).toBe(1);
       expect(parsed.summary).toEqual({ linesAdded: 50, linesRemoved: 10 });
@@ -875,11 +808,10 @@ describe("Pull request tools", () => {
         },
       });
 
-      expect(h.mockClients.api.post).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.post,
         "projects/PROJ/repos/my-repo/pull-requests/10/merge",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ strategyId: strategy }),
-        }),
+        { strategyId: strategy },
       );
     });
 
@@ -918,15 +850,10 @@ describe("Pull request tools", () => {
         arguments: { repository: "r", ...args },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         expect.stringContaining("/pull-requests"),
-        expect.objectContaining({
-          searchParams: expect.objectContaining({
-            state: args.state,
-            direction: args.direction,
-            order: args.order,
-          }),
-        }),
+        { state: args.state, direction: args.direction, order: args.order },
       );
     });
   });
@@ -949,11 +876,10 @@ describe("Pull request tools", () => {
         arguments: { repository: "r", ...args },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         expect.any(String),
-        expect.objectContaining({
-          searchParams: expect.objectContaining(args),
-        }),
+        args,
       );
     });
   });

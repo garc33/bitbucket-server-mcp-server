@@ -1,7 +1,11 @@
 import { describe, test, expect } from "vitest";
 import { registerReviewTools } from "../../tools/reviews.js";
 import { mockJson, mockVoid } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import {
+  callAndParse,
+  expectCalledWithJson,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Review tools", () => {
   const h = setupToolHarness({
@@ -20,17 +24,15 @@ describe("Review tools", () => {
 
       mockJson(h.mockClients.api.post, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "submit_review",
-        arguments: {
+      const parsed = await callAndParse<{ approved: boolean }>(
+        h.client,
+        "submit_review",
+        {
           action: "approve",
           repository: "my-repo",
           prId: "42",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.approved).toBe(true);
       expect(h.mockClients.api.post).toHaveBeenCalledWith(
@@ -42,17 +44,14 @@ describe("Review tools", () => {
     test("should unapprove a pull request", async () => {
       mockVoid(h.mockClients.api.delete);
 
-      const result = await h.client.callTool({
-        name: "submit_review",
-        arguments: {
-          action: "unapprove",
-          repository: "my-repo",
-          prId: 42,
-        },
+      const parsed = await callAndParse<{
+        unapproved: boolean;
+        prId: number;
+      }>(h.client, "submit_review", {
+        action: "unapprove",
+        repository: "my-repo",
+        prId: 42,
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.unapproved).toBe(true);
       expect(parsed.prId).toBe(42);
@@ -70,29 +69,26 @@ describe("Review tools", () => {
 
       mockJson(h.mockClients.api.put, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "submit_review",
-        arguments: {
+      const parsed = await callAndParse<{ status: string }>(
+        h.client,
+        "submit_review",
+        {
           action: "publish",
           repository: "my-repo",
           prId: 42,
           commentText: "LGTM",
           participantStatus: "APPROVED",
         },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      );
 
       expect(parsed.status).toBe("APPROVED");
-      expect(h.mockClients.api.put).toHaveBeenCalledWith(
+      expectCalledWithJson(
+        h.mockClients.api.put,
         "projects/DEFAULT/repos/my-repo/pull-requests/42/review",
-        expect.objectContaining({
-          json: expect.objectContaining({
-            commentText: "LGTM",
-            participantStatus: "APPROVED",
-          }),
-        }),
+        {
+          commentText: "LGTM",
+          participantStatus: "APPROVED",
+        },
       );
     });
   });

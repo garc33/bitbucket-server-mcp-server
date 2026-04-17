@@ -2,7 +2,12 @@ import { describe, test, expect } from "vitest";
 import type { Input } from "ky";
 import { registerBranchTools } from "../../tools/branches.js";
 import { fakeResponse, mockJson } from "../test-utils.js";
-import { setupToolHarness } from "../tool-test-utils.js";
+import {
+  callAndParse,
+  expectCalledWith,
+  expectCalledWithSearchParams,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Branch tools", () => {
   const h = setupToolHarness({
@@ -34,13 +39,14 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await h.client.callTool({
-        name: "list_branches",
-        arguments: { project: "TEST", repository: "my-repo" },
+      const parsed = await callAndParse<{
+        total: number;
+        branches: Array<{ displayId: string }>;
+        defaultBranch: { displayId: string };
+      }>(h.client, "list_branches", {
+        project: "TEST",
+        repository: "my-repo",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.total).toBe(2);
       expect(parsed.branches).toHaveLength(2);
@@ -59,10 +65,7 @@ describe("Branch tools", () => {
         });
       });
 
-      await h.client.callTool({
-        name: "list_branches",
-        arguments: { repository: "my-repo" },
-      });
+      await callAndParse(h.client, "list_branches", { repository: "my-repo" });
 
       expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/branches",
@@ -101,13 +104,14 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await h.client.callTool({
-        name: "list_branches",
-        arguments: { project: "TEST", repository: "my-repo", fields: "*all" },
+      const parsed = await callAndParse<{
+        branches: Array<{ extraField: string }>;
+        defaultBranch: { extraField: string };
+      }>(h.client, "list_branches", {
+        project: "TEST",
+        repository: "my-repo",
+        fields: "*all",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.branches[0].extraField).toBe("should be kept");
       expect(parsed.defaultBranch.extraField).toBe("also kept");
@@ -129,13 +133,10 @@ describe("Branch tools", () => {
         return fakeResponse({ json: () => Promise.resolve(branchesResponse) });
       });
 
-      const result = await h.client.callTool({
-        name: "list_branches",
-        arguments: { project: "TEST", repository: "my-repo" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{
+        total: number;
+        defaultBranch: unknown;
+      }>(h.client, "list_branches", { project: "TEST", repository: "my-repo" });
 
       expect(parsed.total).toBe(1);
       expect(parsed.defaultBranch).toBeNull();
@@ -163,23 +164,23 @@ describe("Branch tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_commits",
-        arguments: { project: "TEST", repository: "my-repo", branch: "main" },
+      const parsed = await callAndParse<{
+        total: number;
+        commits: Array<{ id: string }>;
+      }>(h.client, "list_commits", {
+        project: "TEST",
+        repository: "my-repo",
+        branch: "main",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.total).toBe(2);
       expect(parsed.commits).toHaveLength(2);
       expect(parsed.commits[0].id).toBe("abc123");
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
         "projects/TEST/repos/my-repo/commits",
-        expect.objectContaining({
-          searchParams: expect.objectContaining({ until: "main" }),
-        }),
+        { until: "main" },
       );
     });
 
@@ -203,13 +204,14 @@ describe("Branch tools", () => {
 
       mockJson(h.mockClients.api.get, mockResponse);
 
-      const result = await h.client.callTool({
-        name: "list_commits",
-        arguments: { project: "TEST", repository: "my-repo", author: "JOHN" },
+      const parsed = await callAndParse<{
+        total: number;
+        commits: Array<{ id: string }>;
+      }>(h.client, "list_commits", {
+        project: "TEST",
+        repository: "my-repo",
+        author: "JOHN",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.total).toBe(1);
       expect(parsed.commits).toHaveLength(1);
@@ -223,10 +225,7 @@ describe("Branch tools", () => {
         isLastPage: true,
       });
 
-      await h.client.callTool({
-        name: "list_commits",
-        arguments: { repository: "my-repo" },
-      });
+      await callAndParse(h.client, "list_commits", { repository: "my-repo" });
 
       expect(h.mockClients.api.get).toHaveBeenCalledWith(
         "projects/DEFAULT/repos/my-repo/commits",
@@ -243,17 +242,14 @@ describe("Branch tools", () => {
       });
       mockJson(h.mockClients.branchUtils.post, {});
 
-      const result = await h.client.callTool({
-        name: "delete_branch",
-        arguments: {
-          project: "TEST",
-          repository: "my-repo",
-          branch: "feature/old",
-        },
+      const parsed = await callAndParse<{
+        deleted: boolean;
+        branch: string;
+      }>(h.client, "delete_branch", {
+        project: "TEST",
+        repository: "my-repo",
+        branch: "feature/old",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
 
       expect(parsed.deleted).toBe(true);
       expect(parsed.branch).toBe("feature/old");
@@ -294,7 +290,8 @@ describe("Branch tools", () => {
         arguments: { repository: "my-repo", branch: "feature/old" },
       });
 
-      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+      expectCalledWith(
+        h.mockClients.api.get,
         "projects/DEFAULT/repos/my-repo/default-branch",
       );
     });
@@ -355,20 +352,14 @@ describe("Branch tools", () => {
         isLastPage: true,
       });
 
-      const result = await h.client.callTool({
-        name: "list_commits",
-        arguments: {
-          repository: "r",
-          author: filter,
-          fields: "author.name",
-        },
+      const parsed = await callAndParse<{
+        commits: Array<{ author: { name: string } }>;
+      }>(h.client, "list_commits", {
+        repository: "r",
+        author: filter,
+        fields: "author.name",
       });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
-      const names = (parsed.commits as Array<{ author: { name: string } }>).map(
-        (c) => c.author.name,
-      );
+      const names = parsed.commits.map((c) => c.author.name);
       expect(names).toEqual(expected);
     });
 
@@ -378,13 +369,11 @@ describe("Branch tools", () => {
         isLastPage: true,
       });
 
-      const result = await h.client.callTool({
-        name: "list_commits",
-        arguments: { repository: "r", author: "smith" },
-      });
-
-      const content = result.content as Array<{ type: string; text: string }>;
-      const parsed = JSON.parse(content[0].text);
+      const parsed = await callAndParse<{ commits: unknown[] }>(
+        h.client,
+        "list_commits",
+        { repository: "r", author: "smith" },
+      );
       expect(parsed.commits).toHaveLength(1);
     });
   });
