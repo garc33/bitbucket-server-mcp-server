@@ -1,12 +1,14 @@
 import { describe, test, expect } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { registerSearchTools } from "../../tools/search.js";
-import { createMockClients, mockError, mockJson } from "../test-utils.js";
-import { ToolContext } from "../../tools/shared.js";
-import { ApiCache } from "../../http/cache.js";
-import { callAndParse, callRaw, setupToolHarness } from "../tool-test-utils.js";
+import { mockError, mockJson } from "../test-utils.js";
+import {
+  callAndParse,
+  callRaw,
+  createTestToolContext,
+  setupToolHarness,
+} from "../tool-test-utils.js";
 
 describe("Search tools", () => {
   const h = setupToolHarness({
@@ -257,36 +259,30 @@ describe("Search tools", () => {
     );
 
     test("should throw when repository provided but no project and no default", async () => {
-      // Re-register with a context that has no defaultProject
-      const { server: bareServer } = (() => {
-        const s = new McpServer({ name: "bare", version: "1.0.0" });
-        const bareClients = createMockClients();
-        const bareCache = new ApiCache({ defaultTtlMs: 100 });
-        registerSearchTools(
-          new ToolContext({
-            server: s,
-            clients: bareClients,
-            cache: bareCache,
-          }),
-        );
-        return { server: s };
-      })();
+      // Per-test context override: the describe-level harness sets
+      // defaultProject="DEFAULT"; this test needs a context without one.
+      const ctx = createTestToolContext({ defaultProject: undefined });
+      registerSearchTools(ctx);
 
       const [ct, st] = InMemoryTransport.createLinkedPair();
       const bareClient = new Client(
         { name: "c", version: "1.0" },
         { capabilities: {} },
       );
-      await Promise.all([bareServer.connect(st), bareClient.connect(ct)]);
+      await Promise.all([ctx.server.connect(st), bareClient.connect(ct)]);
 
-      const result = await bareClient.callTool({
-        name: "search",
-        arguments: { query: "q", repository: "r" },
-      });
+      try {
+        const result = await bareClient.callTool({
+          name: "search",
+          arguments: { query: "q", repository: "r" },
+        });
 
-      expect(result.isError).toBe(true);
-      await bareClient.close();
-      await st.close();
+        expect(result.isError).toBe(true);
+      } finally {
+        await bareClient.close();
+        await st.close();
+        await ctx.server.close?.();
+      }
     });
   });
 });
