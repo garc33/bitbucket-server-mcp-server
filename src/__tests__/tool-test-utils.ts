@@ -14,6 +14,31 @@ export interface ToolTestContext {
   readonly ctx: ToolContext;
 }
 
+export interface McpConnection extends AsyncDisposable {
+  readonly client: Client;
+}
+
+export async function connectMcp(server: McpServer): Promise<McpConnection> {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "test-client", version: "1.0.0" },
+    { capabilities: {} },
+  );
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+  return {
+    client,
+    async [Symbol.asyncDispose]() {
+      await client.close();
+      await serverTransport.close();
+      await server.close?.();
+    },
+  };
+}
+
 /**
  * Build a standalone ToolContext for unit tests that do not need an MCP
  * client/server pair. Mirrors the construction inside `setupToolHarness` so
@@ -55,13 +80,10 @@ export function setupToolHarness(options: {
   maxLinesPerFile?: number;
   cacheTtlMs?: number;
 }): ToolTestContext {
-  // Backing fields; updated in beforeEach.
   const state = {
     server: undefined as McpServer | undefined,
     client: undefined as Client | undefined,
-    serverTransport: undefined as
-      | ReturnType<typeof InMemoryTransport.createLinkedPair>[1]
-      | undefined,
+    conn: undefined as McpConnection | undefined,
     mockClients: undefined as MockApiClients | undefined,
     ctx: undefined as ToolContext | undefined,
   };
@@ -77,25 +99,14 @@ export function setupToolHarness(options: {
     state.server = state.ctx.server;
     options.register(state.ctx);
 
-    const [clientTransport, sTransport] = InMemoryTransport.createLinkedPair();
-    state.serverTransport = sTransport;
-    state.client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-    await Promise.all([
-      state.server.connect(sTransport),
-      state.client.connect(clientTransport),
-    ]);
+    state.conn = await connectMcp(state.ctx.server);
+    state.client = state.conn.client;
   });
 
   afterEach(async () => {
-    await state.client?.close();
-    await state.serverTransport?.close();
-    await state.server?.close?.();
+    await state.conn?.[Symbol.asyncDispose]();
   });
 
-  // Proxy so `harness.client` always points to the current-test instance.
   return {
     get client() {
       return state.client!;

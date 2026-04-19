@@ -1,7 +1,7 @@
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { describe, test, expect } from "vitest";
 import { registerRepositoryTools } from "../../tools/repositories.js";
 import { mockError, mockJson } from "../test-utils.js";
 import {
@@ -12,6 +12,16 @@ import {
   expectCalledWithSearchParams,
   setupToolHarness,
 } from "../tool-test-utils.js";
+
+async function tempDir() {
+  const path = await mkdtemp(join(tmpdir(), "bitbucket-mcp-test-"));
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true });
+    },
+  };
+}
 
 describe("Repository tools", () => {
   const h = setupToolHarness({
@@ -205,21 +215,42 @@ describe("Repository tools", () => {
 
       expect(result.isError).toBe(true);
     });
+
+    test("should pass custom limit as searchParam", async () => {
+      mockJson(h.mockClients.api.get, { children: { values: [], size: 0 } });
+
+      await h.client.callTool({
+        name: "browse_repository",
+        arguments: { project: "TEST", repository: "r", limit: 200 },
+      });
+
+      expectCalledWithSearchParams(
+        h.mockClients.api.get,
+        "projects/TEST/repos/r/browse",
+        { limit: 200 },
+      );
+    });
+
+    test("should not include 'at' when branch is omitted", async () => {
+      mockJson(h.mockClients.api.get, { children: { values: [], size: 0 } });
+
+      await h.client.callTool({
+        name: "browse_repository",
+        arguments: { project: "TEST", repository: "r" },
+      });
+
+      const [, opts] = h.mockClients.api.get.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(opts.searchParams).not.toHaveProperty("at");
+    });
   });
 
   describe("upload_attachment", () => {
-    let tmpDir: string;
-
-    beforeEach(async () => {
-      tmpDir = await mkdtemp(join(tmpdir(), "bitbucket-mcp-test-"));
-    });
-
-    afterEach(async () => {
-      await rm(tmpDir, { recursive: true, force: true });
-    });
-
     test("should upload a local file and return image markdown reference", async () => {
-      await writeFile(join(tmpDir, "screenshot.png"), "fake-png-content");
+      await using tmp = await tempDir();
+      await writeFile(join(tmp.path, "screenshot.png"), "fake-png-content");
 
       const mockResponse = {
         attachments: [
@@ -244,7 +275,7 @@ describe("Repository tools", () => {
       }>(h.client, "upload_attachment", {
         project: "TEST",
         repository: "my-repo",
-        filePath: join(tmpDir, "screenshot.png"),
+        filePath: join(tmp.path, "screenshot.png"),
       });
 
       expect(result.isError).toBeFalsy();
@@ -259,7 +290,8 @@ describe("Repository tools", () => {
     });
 
     test("should use link markdown for non-image files", async () => {
-      await writeFile(join(tmpDir, "report.pdf"), "fake-pdf-content");
+      await using tmp = await tempDir();
+      await writeFile(join(tmp.path, "report.pdf"), "fake-pdf-content");
 
       const mockResponse = {
         attachments: [
@@ -282,10 +314,107 @@ describe("Repository tools", () => {
         {
           project: "TEST",
           repository: "my-repo",
-          filePath: join(tmpDir, "report.pdf"),
+          filePath: join(tmp.path, "report.pdf"),
         },
       );
       expect(parsed.markdown).toBe("[report.pdf](attachment:1/5)");
+    });
+
+    describe("image extension equivalence classes", () => {
+      const imageExts = ["jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"];
+      const nonImageExts = ["txt", "zip", "tar", "doc", "xls"];
+
+      const attachmentResponse = (id: number) => ({
+        attachments: [
+          {
+            id,
+            url: `http://bb.example.com/att/${id}`,
+            links: {
+              self: { href: `http://bb.example.com/att/${id}` },
+              attachment: { href: `attachment:1/${id}` },
+            },
+          },
+        ],
+      });
+
+      test.each(imageExts)(
+        ".%s produces image markdown ![...](...)",
+        async (ext) => {
+          await using tmp = await tempDir();
+          const fileName = `photo.${ext}`;
+          await writeFile(join(tmp.path, fileName), "img");
+          mockJson(h.mockClients.api.post, attachmentResponse(1));
+
+          const parsed = await callAndParse<{ markdown: string }>(
+            h.client,
+            "upload_attachment",
+            {
+              project: "TEST",
+              repository: "my-repo",
+              filePath: join(tmp.path, fileName),
+            },
+          );
+          expect(parsed.markdown).toMatch(/^!\[/);
+        },
+      );
+
+      test.each(nonImageExts)(
+        ".%s produces link markdown [...](...)",
+        async (ext) => {
+          await using tmp = await tempDir();
+          const fileName = `file.${ext}`;
+          await writeFile(join(tmp.path, fileName), "data");
+          mockJson(h.mockClients.api.post, attachmentResponse(2));
+
+          const parsed = await callAndParse<{ markdown: string }>(
+            h.client,
+            "upload_attachment",
+            {
+              project: "TEST",
+              repository: "my-repo",
+              filePath: join(tmp.path, fileName),
+            },
+          );
+          expect(parsed.markdown).toMatch(/^\[/);
+          expect(parsed.markdown).not.toMatch(/^!\[/);
+        },
+      );
+
+      test("filename without extension (no dot) produces link markdown", async () => {
+        await using tmp = await tempDir();
+        await writeFile(join(tmp.path, "Makefile"), "all:");
+        mockJson(h.mockClients.api.post, attachmentResponse(10));
+
+        const parsed = await callAndParse<{ markdown: string }>(
+          h.client,
+          "upload_attachment",
+          {
+            project: "TEST",
+            repository: "my-repo",
+            filePath: join(tmp.path, "Makefile"),
+          },
+        );
+        expect(parsed.markdown).toMatch(/^\[/);
+        expect(parsed.markdown).not.toMatch(/^!\[/);
+      });
+
+      test("filename ending with .pngX (not a real image ext) produces link markdown", async () => {
+        await using tmp = await tempDir();
+        await writeFile(join(tmp.path, "fake.pngx"), "data");
+        mockJson(h.mockClients.api.post, attachmentResponse(11));
+
+        const parsed = await callAndParse<{ markdown: string }>(
+          h.client,
+          "upload_attachment",
+          {
+            project: "TEST",
+            repository: "my-repo",
+            filePath: join(tmp.path, "fake.pngx"),
+          },
+        );
+        expect(parsed.markdown).toMatch(/^\[/);
+        expect(parsed.markdown).not.toMatch(/^!\[/);
+      });
     });
   });
 
@@ -400,6 +529,10 @@ describe("Repository tools", () => {
       }>(h.client, "get_server_info", {});
       expect(parsed.version).toBe("8.19.1");
       expect(parsed.displayName).toBe("Bitbucket");
+
+      expect(h.mockClients.api.get).toHaveBeenCalledWith(
+        "application-properties",
+      );
     });
 
     test("should handle errors gracefully", async () => {
@@ -435,6 +568,22 @@ describe("Repository tools", () => {
       expect(parsed.projects[0]).toHaveProperty("extra");
     });
 
+    test("should curate to only requested fields with custom fields param", async () => {
+      mockJson(h.mockClients.api.get, {
+        values: [
+          { key: "P", name: "Proj", description: "D", type: "N", extra: "x" },
+        ],
+        size: 1,
+        isLastPage: true,
+      });
+
+      const parsed = await callAndParse<{
+        projects: Array<Record<string, unknown>>;
+      }>(h.client, "list_projects", { fields: "key,name" });
+
+      expect(Object.keys(parsed.projects[0]).sort()).toEqual(["key", "name"]);
+    });
+
     test("should handle errors gracefully", async () => {
       mockError(h.mockClients.api.get, new Error("Server error"));
 
@@ -461,6 +610,34 @@ describe("Repository tools", () => {
       }>(h.client, "list_repositories", { project: "TEST", fields: "*all" });
       expect(parsed.repositories[0]).toHaveProperty("links");
       expect(parsed.repositories[0]).toHaveProperty("extra");
+    });
+
+    test("should curate to only requested fields with custom fields param", async () => {
+      mockJson(h.mockClients.api.get, {
+        values: [
+          {
+            slug: "r",
+            name: "Repo",
+            project: { key: "T" },
+            state: "AVAILABLE",
+            extra: "x",
+          },
+        ],
+        size: 1,
+        isLastPage: true,
+      });
+
+      const parsed = await callAndParse<{
+        repositories: Array<Record<string, unknown>>;
+      }>(h.client, "list_repositories", {
+        project: "TEST",
+        fields: "slug,name",
+      });
+
+      expect(Object.keys(parsed.repositories[0]).sort()).toEqual([
+        "name",
+        "slug",
+      ]);
     });
 
     test.each([

@@ -1,13 +1,34 @@
-import { describe, test, expect, afterAll, beforeAll } from "vitest";
+import { describe, test, expect } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../../server.js";
 
-/**
- * Call listTools, mapping the "tools capability not advertised" rejection to
- * an empty list. Any other error (transport failure, type error, etc.) is
- * rethrown so the test fails loudly instead of silently reporting "no tools".
- */
+async function connectServer(options: Record<string, unknown>) {
+  const { server } = createServer({
+    baseUrl: "http://localhost",
+    token: "fake",
+    ...options,
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "test-client", version: "1.0.0" },
+    { capabilities: {} },
+  );
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+  return {
+    client,
+    async [Symbol.asyncDispose]() {
+      await client.close();
+      await serverTransport.close();
+      await server.close?.();
+    },
+  };
+}
+
 async function listToolsOrEmpty(client: Client): Promise<string[]> {
   try {
     const { tools } = await client.listTools();
@@ -24,44 +45,10 @@ async function listToolsOrEmpty(client: Client): Promise<string[]> {
   }
 }
 
-function connectServer(options: Record<string, unknown>) {
-  return async () => {
-    const { server } = createServer({
-      baseUrl: "http://localhost",
-      token: "fake",
-      ...options,
-    });
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-    const client = new Client(
-      { name: "test-client", version: "1.0.0" },
-      { capabilities: {} },
-    );
-    await Promise.all([
-      server.connect(serverTransport),
-      client.connect(clientTransport),
-    ]);
-    return { client, serverTransport };
-  };
-}
-
 describe("readOnly mode", () => {
-  let client: Client;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeAll(async () => {
-    const conn = await connectServer({ readOnly: true })();
-    client = conn.client;
-    serverTransport = conn.serverTransport;
-  });
-
-  afterAll(async () => {
-    await client.close();
-    await serverTransport.close();
-  });
-
   test("should exclude write tools", async () => {
-    const { tools } = await client.listTools();
+    await using conn = await connectServer({ readOnly: true });
+    const { tools } = await conn.client.listTools();
     const names = tools.map((t) => t.name);
 
     expect(names).toContain("list_projects");
@@ -81,24 +68,11 @@ describe("readOnly mode", () => {
 });
 
 describe("enabledTools filter", () => {
-  let client: Client;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeAll(async () => {
-    const conn = await connectServer({
-      enabledTools: ["list_projects", "get_pull_request", "search"],
-    })();
-    client = conn.client;
-    serverTransport = conn.serverTransport;
-  });
-
-  afterAll(async () => {
-    await client.close();
-    await serverTransport.close();
-  });
-
   test("should only register the specified tools", async () => {
-    const { tools } = await client.listTools();
+    await using conn = await connectServer({
+      enabledTools: ["list_projects", "get_pull_request", "search"],
+    });
+    const { tools } = await conn.client.listTools();
     const names = tools.map((t) => t.name);
 
     expect(names).toEqual(
@@ -109,28 +83,13 @@ describe("enabledTools filter", () => {
 });
 
 describe("default mode (no readOnly, no enabledTools)", () => {
-  let client: Client;
-  let serverTransport: ReturnType<typeof InMemoryTransport.createLinkedPair>[1];
-
-  beforeAll(async () => {
-    const conn = await connectServer({})();
-    client = conn.client;
-    serverTransport = conn.serverTransport;
-  });
-
-  afterAll(async () => {
-    await client.close();
-    await serverTransport.close();
-  });
-
   test("registers all tools including write ones", async () => {
-    const { tools } = await client.listTools();
+    await using conn = await connectServer({});
+    const { tools } = await conn.client.listTools();
     const names = tools.map((t) => t.name);
 
-    // Read tools
     expect(names).toContain("list_projects");
     expect(names).toContain("get_pull_request");
-    // Write tools
     expect(names).toContain("create_pull_request");
     expect(names).toContain("update_pull_request");
     expect(names).toContain("merge_pull_request");
@@ -173,28 +132,37 @@ describe("readOnly + enabledTools combined (decision table)", () => {
       expected: ["create_pull_request", "merge_pull_request"],
     },
   ])("$name", async ({ options, expected }) => {
-    const conn = await connectServer(options)();
-    try {
-      const { tools } = await conn.client.listTools();
-      const names = tools.map((t) => t.name).sort();
-      expect(names).toEqual(expected.sort());
-    } finally {
-      await conn.client.close();
-      await conn.serverTransport.close();
-    }
+    await using conn = await connectServer(options);
+    const { tools } = await conn.client.listTools();
+    const names = tools.map((t) => t.name).sort();
+    expect(names).toEqual(expected.sort());
   });
 
   test("readOnly=true + only-write enabledTools exposes no tools", async () => {
-    const conn = await connectServer({
+    await using conn = await connectServer({
       readOnly: true,
       enabledTools: ["create_pull_request", "merge_pull_request"],
-    })();
-    try {
-      const toolNames = await listToolsOrEmpty(conn.client);
-      expect(toolNames).toEqual([]);
-    } finally {
-      await conn.client.close();
-      await conn.serverTransport.close();
-    }
+    });
+    const toolNames = await listToolsOrEmpty(conn.client);
+    expect(toolNames).toEqual([]);
+  });
+});
+
+describe("server identity", () => {
+  test("server name is bitbucket-server-mcp", async () => {
+    await using conn = await connectServer({});
+    const info = await conn.client.getServerVersion();
+    expect(info?.name).toBe("bitbucket-server-mcp");
+  });
+
+  test("server exposes instructions with workflow tips", async () => {
+    await using conn = await connectServer({});
+    const instructions = await conn.client.getInstructions();
+    expect(instructions).toBeDefined();
+    expect(instructions!.length).toBeGreaterThan(100);
+    expect(instructions).toContain("list_projects");
+    expect(instructions).toContain("manage_comment");
+    expect(instructions).toContain("submit_review");
+    expect(instructions).toContain("BITBUCKET_DEFAULT_PROJECT");
   });
 });
