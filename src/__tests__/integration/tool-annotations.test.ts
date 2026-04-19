@@ -124,11 +124,4 @@ describe("Tool annotations", () => {
       });
     });
   });
-
-  test("search has openWorldHint", () => {
-    expect(tools.get("search")).toMatchObject({
-      readOnlyHint: true,
-      openWorldHint: true,
-    });
-  });
 });

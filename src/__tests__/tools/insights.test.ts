@@ -164,7 +164,7 @@ describe("Insight tools", () => {
         pullRequestId: 1,
       });
 
-      const urls = h.mockClients.insights.get.mock.calls.map((c: [string]) =>
+      const urls = h.mockClients.insights.get.mock.calls.map((c) =>
         String(c[0]),
       );
       expect(urls).toEqual(

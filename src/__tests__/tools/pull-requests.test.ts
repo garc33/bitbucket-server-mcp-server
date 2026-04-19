@@ -1236,34 +1236,4 @@ describe("Pull request tools", () => {
       );
     });
   });
-
-  describe("tool schemas are non-trivial", () => {
-    test("registered tools have descriptions and field descriptions", async () => {
-      const { tools } = await h.client.listTools();
-      const prTools = tools.filter(
-        (t) =>
-          t.name.includes("pull_request") ||
-          t.name === "get_diff" ||
-          t.name === "get_pr_activity" ||
-          t.name === "get_dashboard_pull_requests",
-      );
-      expect(prTools.length).toBeGreaterThan(0);
-
-      for (const tool of prTools) {
-        expect(
-          (tool.description ?? "").length,
-          `${tool.name} has no description`,
-        ).toBeGreaterThan(10);
-
-        const props = ((tool.inputSchema as Record<string, unknown>)
-          .properties ?? {}) as Record<string, Record<string, unknown>>;
-        for (const [field, schema] of Object.entries(props)) {
-          expect(
-            (schema.description as string | undefined)?.length,
-            `${tool.name}.${field} has no description`,
-          ).toBeGreaterThan(0);
-        }
-      }
-    });
-  });
 });

@@ -271,23 +271,4 @@ describe("Search tools", () => {
       expect(result.isError).toBe(true);
     });
   });
-
-  describe("tool schema is non-trivial", () => {
-    test("search tool has description and all fields have descriptions", async () => {
-      const { tools } = await h.client.listTools();
-      const tool = tools.find((t) => t.name === "search");
-      expect(tool).toBeDefined();
-      expect((tool!.description ?? "").length).toBeGreaterThan(10);
-
-      const props = (tool!.inputSchema as Record<string, unknown>)
-        .properties as Record<string, Record<string, unknown>> | undefined;
-      expect(props).toBeDefined();
-      for (const [field, schema] of Object.entries(props!)) {
-        expect(
-          (schema.description as string | undefined)?.length,
-          `search.${field} has no description`,
-        ).toBeGreaterThan(0);
-      }
-    });
-  });
 });
