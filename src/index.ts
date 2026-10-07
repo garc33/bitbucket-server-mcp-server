@@ -30,7 +30,10 @@ const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: logFilePath })
+    new winston.transports.File({ filename: logFilePath }),
+    // stdout is reserved for JSON-RPC; all log levels go to stderr so logs
+    // aren't lost in ephemeral containers (see issue #20).
+    new winston.transports.Console({ stderrLevels: ['error', 'warn', 'info', 'debug'] })
   ]
 });
 
