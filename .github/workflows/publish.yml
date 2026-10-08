@@ -16,10 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js 22.x
+      # Trusted publishing (OIDC) requires npm >= 11.5.1, shipped with Node 24
+      - name: Use Node.js 24.x
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: "npm"
           registry-url: "https://registry.npmjs.org"
 
@@ -35,7 +36,6 @@ jobs:
             exit 1
           fi
 
+      # Authenticates via npm trusted publishing: no NPM_TOKEN secret needed
       - name: Publish
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
