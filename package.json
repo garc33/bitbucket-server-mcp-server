@@ -23,7 +23,7 @@
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "bin": {
-    "bitbucket-server-mcp": "./build/index.js"
+    "bitbucket-server-mcp": "build/index.js"
   },
   "files": [
     "build",

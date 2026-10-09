@@ -16,13 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Trusted publishing (OIDC) requires npm >= 11.5.1, shipped with Node 24
       - name: Use Node.js 24.x
         uses: actions/setup-node@v4
         with:
           node-version: 24.x
           cache: "npm"
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing (OIDC) and `npm stage` require a recent npm
+      - name: Update npm
+        run: npm install -g npm@12
 
       - name: Install dependencies
         run: npm ci
@@ -36,6 +39,8 @@ jobs:
             exit 1
           fi
 
-      # Authenticates via npm trusted publishing: no NPM_TOKEN secret needed
-      - name: Publish
-        run: npm publish --provenance --access public
+      # Authenticates via npm trusted publishing: no NPM_TOKEN secret needed.
+      # The trusted publisher is only allowed to stage: approve the staged
+      # version on npmjs.com (or with `npm stage approve`) to make it public.
+      - name: Stage publish
+        run: npm stage publish --provenance --access public
