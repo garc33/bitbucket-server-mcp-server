@@ -22,7 +22,7 @@ MCP (Model Context Protocol) server for Bitbucket Server Pull Request management
 
 ## Requirements
 
-- Node.js >= 16
+- Node.js >= 22
 
 ## Installation
 
