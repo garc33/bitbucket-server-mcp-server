@@ -34,6 +34,31 @@ To install Bitbucket Server for Claude Desktop automatically via [Smithery](http
 npx -y @smithery/cli install @garc33/bitbucket-server-mcp-server --client claude
 ```
 
+### Installing via npm
+
+The server is published on npm as [`@garc33/bitbucket-server-mcp-server`](https://www.npmjs.com/package/@garc33/bitbucket-server-mcp-server). You can run it directly with `npx`:
+
+```json
+{
+  "mcpServers": {
+    "bitbucket": {
+      "command": "npx",
+      "args": ["-y", "@garc33/bitbucket-server-mcp-server"],
+      "env": {
+        "BITBUCKET_URL": "https://your-bitbucket-server.com",
+        "BITBUCKET_TOKEN": "your-access-token"
+      }
+    }
+  }
+}
+```
+
+Or install it globally and use the `bitbucket-server-mcp` command:
+
+```bash
+npm install -g @garc33/bitbucket-server-mcp-server
+```
+
 ### Manual Installation
 
 ```bash

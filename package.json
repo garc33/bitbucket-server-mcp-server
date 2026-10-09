@@ -1,13 +1,36 @@
 {
-  "name": "bitbucket-server",
+  "name": "@garc33/bitbucket-server-mcp-server",
   "version": "1.0.0",
   "description": "MCP Server for Bitbucket Server PR management",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/garc33/bitbucket-server-mcp-server.git"
+  },
+  "homepage": "https://github.com/garc33/bitbucket-server-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/garc33/bitbucket-server-mcp-server/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "bitbucket",
+    "bitbucket-server",
+    "bitbucket-data-center",
+    "pull-request"
+  ],
   "type": "module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "bin": {
     "bitbucket-server-mcp": "./build/index.js"
   },
+  "files": [
+    "build",
+    "!build/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc && node -e \"if (process.platform !== 'win32') require('child_process').execSync('chmod +x build/index.js')\"",
     "postinstall": "node -e \"const fs=require('fs'); if (process.platform !== 'win32' && fs.existsSync('build/index.js')) require('child_process').execSync('chmod +x build/index.js')\"",
@@ -19,7 +42,8 @@
     "format": "prettier --write 'src/**/*.ts'",
     "update:check": "npx npm-check-updates",
     "update:deps": "npx npm-check-updates -u && npm install --legacy-peer-deps",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "prepublishOnly": "npm run lint && npm test -- --run && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -42,5 +66,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
