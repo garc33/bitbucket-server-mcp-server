@@ -3,18 +3,104 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  # One-click release from the Actions tab: bumps the version, commits and
+  # tags it on main, creates the GitHub release, then stages the npm publish.
+  # Choose "none" to only stage a publish of the current version.
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (patch: bug fix, minor: new feature, major: breaking change)"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - none
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  # A release created here with GITHUB_TOKEN does not trigger this workflow
+  # again, so the publish job below runs in the same workflow run instead.
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+
+    steps:
+      - name: Check branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Releases must be run from main (got ${{ github.ref }})"
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint, test and build
+        run: |
+          npm run lint
+          npm test -- --run
+          npm run build
+
+      - name: Bump version
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          npm version "$BUMP" --no-git-tag-version
+          VERSION="$(node -p "require('./package.json').version")"
+          # Keep the version advertised by the MCP server in sync
+          sed -i -E "s/(version: ')[0-9]+\.[0-9]+\.[0-9]+(')/\1${VERSION}\2/" src/index.ts
+          grep -q "version: '${VERSION}'" src/index.ts
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: release $VERSION"
+          git tag "$TAG"
+          git push --atomic origin HEAD:main "$TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+
+  publish:
+    needs: release
+    # Runs after a successful release job, or on its own when it was skipped
+    # (published release, or a dispatch with "none")
+    if: ${{ !cancelled() && needs.release.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag || github.ref }}
 
       - name: Use Node.js 24.x
         uses: actions/setup-node@v7
@@ -31,11 +117,13 @@ jobs:
         run: npm ci
 
       - name: Check tag matches package.json version
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || needs.release.outputs.tag != ''
+        env:
+          TAG: ${{ github.event.release.tag_name || needs.release.outputs.tag }}
         run: |
           PKG_VERSION="v$(node -p "require('./package.json').version")"
-          if [ "$PKG_VERSION" != "${{ github.event.release.tag_name }}" ]; then
-            echo "Release tag ${{ github.event.release.tag_name }} does not match package.json version $PKG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG" ]; then
+            echo "Release tag $TAG does not match package.json version $PKG_VERSION"
             exit 1
           fi
 
