@@ -862,3 +862,14 @@ Header-Name=value,Another-Header=value2
   }
 }
 ```
+
+## Releasing
+
+Releases are automated by the [Publish to npm](.github/workflows/publish.yml) workflow:
+
+1. In the **Actions** tab, select **Publish to npm**, then **Run workflow** on `main`.
+2. Choose the version bump: `patch` (bug fix), `minor` (new feature) or `major` (breaking change).
+3. The workflow lints, tests and builds, bumps the version (`package.json`, `package-lock.json`, `src/index.ts`), commits and tags it on `main`, creates the GitHub release with generated notes, and stages the npm publish.
+4. Approve the staged version on npmjs.com (or with `npm stage approve`) to make it public.
+
+Publishing a GitHub release manually still stages the npm publish, as long as its tag matches the `package.json` version.
